@@ -22,12 +22,12 @@ function NewProjectModal({ onSave, onClose }) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const valid = form.job_number && form.street;
 
   const save = async () => {
-    if (!valid) return;
+    if (!form.job_number.trim()) { setError("Job Number is required."); return; }
+    if (!form.street.trim()) { setError("Street Address is required."); return; }
     setSaving(true);
+    setError(null);
     const { data, error } = await createProject({ ...form, budget: parseFloat(form.budget) || null });
     if (error) { setError(error.message); setSaving(false); return; }
     onSave(data);
@@ -65,7 +65,7 @@ function NewProjectModal({ onSave, onClose }) {
         {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 10 }}>{error}</div>}
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <button onClick={onClose} style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", cursor: "pointer" }}>Cancel</button>
-          <button onClick={save} disabled={!valid || saving} style={{ flex: 2, padding: "12px", borderRadius: 8, border: "none", background: valid ? "#e07b39" : "#222", color: valid ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: valid ? "pointer" : "not-allowed" }}>
+          <button onClick={save} disabled={saving} style={{ flex: 2, padding: "12px", borderRadius: 8, border: "none", background: saving ? "#555" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: saving ? "not-allowed" : "pointer" }}>
             {saving ? "SAVING..." : "CREATE PROJECT"}
           </button>
         </div>
