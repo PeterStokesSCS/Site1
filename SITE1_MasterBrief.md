@@ -32,10 +32,14 @@ BUG 6 Client → Supabase ✅ · BUG 7 Subcontractor → Supabase ✅
 Commercial module ✅ · File uploads (Storage) ✅ · AI receipt reading (Edge Function) ✅ ·
 Project Docs (current/superseded) ✅ · Overview tile ✅ · SITE1 rebrand ✅
 
-### Phase 1.9 migrations — ⬜ NOT RUN (additive; unlock Phase 2)
-Big SQL block (photos, blockers, defects, qa_items, procurement_items, eot_claims,
-profile_credentials, + extended fields) not yet run. Note `commercial_items` and
-`project_photos` already exist — reconcile `project_photos` vs brief's `photos` first.
+### Phase 1.9 migrations — ✅ RUN (2026-06-03)
+All tables created: blockers, defects, qa_items, procurement_items, eot_claims,
+profile_credentials. Extended fields added to project_photos (category, linked_record_type,
+linked_record_id, client_visible), variations (client sign-off + audit), tasks (due_time,
+description, attachments), profiles (address, emergency contact). `project_photos` IS the
+photos table; procurement.linked_po_id → commercial_items.
+NOTE: check() constraints were omitted on the new tables (status/priority/type accept any
+text); values are enforced app-side. Re-add constraints later if DB-level validation wanted.
 
 ### Genuinely remaining in Phase 1
 Global Create button · Photo linking + client_visible + schema reconcile · Supervisor
