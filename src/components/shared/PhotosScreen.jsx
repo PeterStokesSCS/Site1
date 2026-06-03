@@ -1,13 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import PhotoCaptureButton from "./PhotoCaptureButton";
-import { gpsStatusLabel } from "../../lib/photoUtils";
-import { getPhotos, addPhoto, updatePhotoCaption, setPhotoClientVisible } from "../../lib/db";
+import { gpsStatusLabel, PHOTO_CATEGORIES, categoryMeta } from "../../lib/photoUtils";
+import { getPhotos, addPhoto, updatePhotoCaption, updatePhotoCategory, setPhotoClientVisible } from "../../lib/db";
 
-// Full-screen photo viewer with editable caption + client-visible toggle
-function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
+// Small coloured category pill used on thumbnails and in the lightbox.
+function CategoryBadge({ category, size = "sm" }) {
+  const m = categoryMeta(category);
+  const small = size === "sm";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      background: small ? m.color : `${m.color}22`,
+      color: small ? "#fff" : m.color,
+      borderRadius: 4, fontFamily: "Barlow Condensed, sans-serif",
+      fontSize: small ? 8 : 12, letterSpacing: 0.3, textTransform: "uppercase",
+      padding: small ? "1px 4px" : "3px 8px", whiteSpace: "nowrap",
+    }}>
+      <span style={{ fontSize: small ? 8 : 12 }}>{m.icon}</span>{m.label}
+    </span>
+  );
+}
+
+// Full-screen photo viewer with editable caption, category + client-visible toggle
+function Lightbox({ photo, onClose, onCaption, onCategory, onClientChange, canSetClient }) {
   const [caption, setCaption] = useState(photo.caption || "");
+  const [category, setCategory] = useState(photo.category || "general");
   const [clientVisible, setClientVisible] = useState(!!photo.client_visible);
   const [saved, setSaved] = useState(false);
 
@@ -15,6 +34,11 @@ function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
     await onCaption(photo.id, caption);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  };
+
+  const pickCategory = async (key) => {
+    setCategory(key);
+    await onCategory(photo.id, key);
   };
 
   const toggleClient = async () => {
@@ -42,6 +66,28 @@ function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
             {photo.gps_lat != null && photo.gps_lng != null && <a href={`https://www.google.com/maps?q=${photo.gps_lat},${photo.gps_lng}`} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", marginLeft: 8, textDecoration: "none" }}>· View on map ↗</a>}
           </div>
         ); })()}
+
+        {/* Category — editable for builder/supervisor, badge otherwise */}
+        {canSetClient ? (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+            {PHOTO_CATEGORIES.map(c => {
+              const active = category === c.key;
+              return (
+                <button key={c.key} onClick={() => pickCategory(c.key)} style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  background: active ? c.color : "transparent",
+                  color: active ? "#fff" : c.color,
+                  border: `1px solid ${c.color}${active ? "" : "66"}`,
+                  borderRadius: 14, padding: "5px 10px", cursor: "pointer",
+                  fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, letterSpacing: 0.3, textTransform: "uppercase",
+                }}>{c.icon} {c.label}</button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ marginBottom: 12 }}><CategoryBadge category={category} size="lg" /></div>
+        )}
+
         <div style={{ display: "flex", gap: 8 }}>
           <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Add a caption…" style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif" }} />
           <button onClick={save} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: saved ? "#22c55e" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>{saved ? "SAVED" : "SAVE"}</button>
@@ -67,14 +113,18 @@ function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
 export default function PhotosScreen({ project, user, onBack }) {
   const [photos, setPhotos] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [filter, setFilter] = useState("all");
   const [err, setErr] = useState(null);
 
   useEffect(() => { getPhotos(project.id).then(({ data }) => setPhotos(data)); }, [project.id]);
 
+  // New photos are tagged with the active filter (or General when viewing all).
+  const captureCategory = filter === "all" ? "general" : filter;
+
   const onPhoto = async (meta) => {
     setErr(null);
     const { data, error } = await addPhoto({
-      project_id: project.id, url: meta.url, taken_by: user.id, category: "general",
+      project_id: project.id, url: meta.url, taken_by: user.id, category: captureCategory,
       file_name: meta.file_name, file_size_kb: meta.file_size_kb,
       gps_lat: meta.gps_lat, gps_lng: meta.gps_lng, gps_accuracy_m: meta.gps_accuracy_m,
       gps_on_site: meta.gps_on_site, gps_distance_from_site_m: meta.gps_distance_from_site_m,
@@ -89,11 +139,31 @@ export default function PhotosScreen({ project, user, onBack }) {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, caption } : p));
   };
 
+  const saveCategory = async (id, category) => {
+    await updatePhotoCategory(id, category);
+    setPhotos(prev => prev.map(p => p.id === id ? { ...p, category } : p));
+    setLightbox(lb => (lb && lb.id === id ? { ...lb, category } : lb));
+  };
+
   // Keep the gallery list in sync so the toggle state persists when reopened
   const onClientChange = (id, value) => {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, client_visible: value } : p));
     setLightbox(lb => (lb && lb.id === id ? { ...lb, client_visible: value } : lb));
   };
+
+  const counts = useMemo(() => {
+    const c = {};
+    (photos || []).forEach(p => { const k = p.category || "general"; c[k] = (c[k] || 0) + 1; });
+    return c;
+  }, [photos]);
+
+  const shown = useMemo(() => {
+    if (!photos) return null;
+    if (filter === "all") return photos;
+    return photos.filter(p => (p.category || "general") === filter);
+  }, [photos, filter]);
+
+  const tabs = [{ key: "all", label: "All", color: "#e07b39", icon: "▦" }, ...PHOTO_CATEGORIES];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
@@ -105,19 +175,46 @@ export default function PhotosScreen({ project, user, onBack }) {
           </div>
         }
       />
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+
+      {/* Category filter tabs */}
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", padding: "10px 12px", borderBottom: "1px solid #1a1a1a", WebkitOverflowScrolling: "touch" }}>
+        {tabs.map(t => {
+          const active = filter === t.key;
+          const n = t.key === "all" ? (photos?.length || 0) : (counts[t.key] || 0);
+          return (
+            <button key={t.key} onClick={() => setFilter(t.key)} style={{
+              display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0,
+              background: active ? t.color : "transparent",
+              color: active ? "#fff" : t.color,
+              border: `1px solid ${t.color}${active ? "" : "55"}`,
+              borderRadius: 16, padding: "6px 12px", cursor: "pointer",
+              fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, letterSpacing: 0.3, textTransform: "uppercase", whiteSpace: "nowrap",
+            }}>
+              {t.icon} {t.label}{n > 0 && <span style={{ opacity: 0.75, fontSize: 11 }}>{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Capture-tag hint */}
+      <div style={{ padding: "6px 12px", fontSize: 11, color: "#666", fontFamily: "DM Sans, sans-serif" }}>
+        New photos will be tagged <CategoryBadge category={captureCategory} size="lg" />
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 12px 12px" }}>
         {err && <div style={{ background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "10px 14px", color: "#ef4444", fontSize: 13, marginBottom: 10 }}>⚠ {err}</div>}
         {photos === null ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
             {[1,2,3,4,5,6].map(i => <div key={i} style={{ aspectRatio: "1", background: "#141414", borderRadius: 8 }} />)}
           </div>
-        ) : photos.length === 0 ? (
-          <EmptyState icon="📷" title="No photos yet" subtitle="Use Take or Add to capture site progress" />
+        ) : shown.length === 0 ? (
+          <EmptyState icon="📷" title={filter === "all" ? "No photos yet" : `No ${categoryMeta(filter).label.toLowerCase()} photos`} subtitle={filter === "all" ? "Use Take or Add to capture site progress" : "Switch filter or tag a photo with this category"} />
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
-            {photos.map(p => (
+            {shown.map(p => (
               <button key={p.id} onClick={() => setLightbox(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#141414", position: "relative" }}>
                 <img src={p.url} alt={p.caption || "site photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <div style={{ position: "absolute", top: 3, left: 3 }}><CategoryBadge category={p.category || "general"} /></div>
                 {p.client_visible && <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 4px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>}
                 {p.caption && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.8))", color: "#fff", fontSize: 10, padding: "12px 6px 5px", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.caption}</div>}
               </button>
@@ -126,7 +223,7 @@ export default function PhotosScreen({ project, user, onBack }) {
         )}
       </div>
 
-      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} onClientChange={onClientChange} canSetClient={user?.role === "builder" || user?.role === "supervisor"} />}
+      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} onCategory={saveCategory} onClientChange={onClientChange} canSetClient={user?.role === "builder" || user?.role === "supervisor"} />}
     </div>
   );
 }

@@ -390,6 +390,11 @@ export async function getPhotosForRecord(recordType, recordId) {
   return { data: data || [], error };
 }
 
+export async function updatePhotoCategory(id, category) {
+  const { error } = await supabase.from("project_photos").update({ category }).eq("id", id);
+  return { error };
+}
+
 export async function setPhotoClientVisible(id, value) {
   const { error } = await supabase.from("project_photos").update({ client_visible: value }).eq("id", id);
   return { error };

@@ -1,5 +1,19 @@
 // Photo helpers — client-side compression, GPS capture, distance-from-site.
 
+// Photo categories (shared across capture, badges and gallery filters).
+export const PHOTO_CATEGORIES = [
+  { key: "progress", label: "Progress", color: "#3b82f6", icon: "🏗" },
+  { key: "safety",   label: "Safety",   color: "#ef4444", icon: "⚠" },
+  { key: "defect",   label: "Defect",   color: "#f59e0b", icon: "🔧" },
+  { key: "qa",       label: "QA",       color: "#22c55e", icon: "✓" },
+  { key: "delivery", label: "Delivery", color: "#a855f7", icon: "📦" },
+  { key: "general",  label: "General",  color: "#888888", icon: "📷" },
+];
+
+export function categoryMeta(key) {
+  return PHOTO_CATEGORIES.find(c => c.key === key) || PHOTO_CATEGORIES[5];
+}
+
 // Compress an image file to a JPEG Blob (≤ maxSizeKB, ≤ maxDimension px).
 export async function compressImage(file, maxSizeKB = 800, maxDimension = 1920) {
   return new Promise((resolve, reject) => {
