@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import FileUploadButton from "./FileUploadButton";
+import PhotoCaptureButton from "./PhotoCaptureButton";
+import { gpsStatusLabel } from "../../lib/photoUtils";
 import { getPhotosForRecord, addPhoto, setPhotoClientVisible } from "../../lib/db";
 
 // Reusable photo block for any record (issue, task, hazard, daily log, defect…).
@@ -16,11 +17,15 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
     getPhotosForRecord(recordType, recordId).then(({ data }) => setPhotos(data));
   }, [recordType, recordId]);
 
-  const onUploaded = async (url) => {
+  const onPhoto = async (meta) => {
     const { data } = await addPhoto({
-      project_id: project.id, url, taken_by: user.id,
+      project_id: project.id, url: meta.url, taken_by: user.id,
       caption: caption.trim() || null, client_visible: clientVisible,
-      linked_record_type: recordType, linked_record_id: recordId, category: "General",
+      linked_record_type: recordType, linked_record_id: recordId, category: "general",
+      file_name: meta.file_name, file_size_kb: meta.file_size_kb,
+      gps_lat: meta.gps_lat, gps_lng: meta.gps_lng, gps_accuracy_m: meta.gps_accuracy_m,
+      gps_on_site: meta.gps_on_site, gps_distance_from_site_m: meta.gps_distance_from_site_m,
+      taken_at: meta.taken_at,
     });
     if (data) setPhotos(p => [data, ...(p || [])]);
     setCaption("");
@@ -61,8 +66,8 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
         </button>
       )}
       <div style={{ display: "flex", gap: 8 }}>
-        <FileUploadButton folder={`records/${project.id}/${recordType}`} accept="image/*" capture="environment" label="📷 Take photo" color={accent} onUploaded={onUploaded} />
-        <FileUploadButton folder={`records/${project.id}/${recordType}`} accept="image/*" label="📎 Add" onUploaded={onUploaded} />
+        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take photo" color={accent} onPhoto={onPhoto} />
+        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} />
       </div>
 
       {/* Lightbox */}
@@ -76,6 +81,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
           </div>
           <div style={{ padding: 16, maxWidth: 480, margin: "0 auto", width: "100%" }} onClick={e => e.stopPropagation()}>
             {view.caption && <div style={{ fontSize: 14, color: "#ccc", marginBottom: 8 }}>{view.caption}</div>}
+            {(() => { const g = gpsStatusLabel({ gps: view.gps_lat != null ? { lat: view.gps_lat } : null, distanceM: view.gps_distance_from_site_m }); return <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>{g.label}{view.taken_at ? ` · ${new Date(view.taken_at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}</div>; })()}
             {canSetClient ? (
               <button onClick={() => { toggleClient(view); setView(v => ({ ...v, client_visible: !v.client_visible })); }} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer" }}>
                 <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${view.client_visible ? "#22c55e" : "#555"}`, background: view.client_visible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
-import FileUploadButton from "./FileUploadButton";
+import PhotoCaptureButton from "./PhotoCaptureButton";
+import { gpsStatusLabel } from "../../lib/photoUtils";
 import { getPhotos, addPhoto, updatePhotoCaption, setPhotoClientVisible } from "../../lib/db";
 
 // Full-screen photo viewer with editable caption + client-visible toggle
@@ -32,9 +33,10 @@ function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
         <img src={photo.url} alt={photo.caption || "site photo"} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
       </div>
       <div style={{ padding: "16px", maxWidth: 480, margin: "0 auto", width: "100%" }}>
-        <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>
-          {photo.taken_by?.full_name || "Unknown"} · {new Date(photo.created_at).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+        <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>
+          {photo.taken_by?.full_name || "Unknown"} · {new Date(photo.taken_at || photo.created_at).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         </div>
+        {(() => { const g = gpsStatusLabel({ gps: photo.gps_lat != null ? { lat: photo.gps_lat } : null, distanceM: photo.gps_distance_from_site_m }); return <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>{g.label}</div>; })()}
         <div style={{ display: "flex", gap: 8 }}>
           <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Add a caption…" style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif" }} />
           <button onClick={save} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: saved ? "#22c55e" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>{saved ? "SAVED" : "SAVE"}</button>
@@ -64,9 +66,15 @@ export default function PhotosScreen({ project, user, onBack }) {
 
   useEffect(() => { getPhotos(project.id).then(({ data }) => setPhotos(data)); }, [project.id]);
 
-  const onUploaded = async (url) => {
+  const onPhoto = async (meta) => {
     setErr(null);
-    const { data, error } = await addPhoto({ project_id: project.id, url, taken_by: user.id });
+    const { data, error } = await addPhoto({
+      project_id: project.id, url: meta.url, taken_by: user.id, category: "general",
+      file_name: meta.file_name, file_size_kb: meta.file_size_kb,
+      gps_lat: meta.gps_lat, gps_lng: meta.gps_lng, gps_accuracy_m: meta.gps_accuracy_m,
+      gps_on_site: meta.gps_on_site, gps_distance_from_site_m: meta.gps_distance_from_site_m,
+      taken_at: meta.taken_at,
+    });
     if (error) { setErr(error.message || "Could not save photo"); return; }
     if (data) setPhotos(prev => [data, ...(prev || [])]);
   };
@@ -87,8 +95,8 @@ export default function PhotosScreen({ project, user, onBack }) {
       <BackHeader title="Photos" subtitle={project.street} onBack={onBack}
         rightSlot={
           <div style={{ display: "flex", gap: 8 }}>
-            <FileUploadButton folder={`photos/${project.id}`} accept="image/*" capture="environment" label="📷 Take" color="#a855f7" onUploaded={onUploaded} />
-            <FileUploadButton folder={`photos/${project.id}`} accept="image/*" label="📎 Add" onUploaded={onUploaded} />
+            <PhotoCaptureButton folder={`photos/${project.id}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take" color="#a855f7" onPhoto={onPhoto} />
+            <PhotoCaptureButton folder={`photos/${project.id}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} />
           </div>
         }
       />
