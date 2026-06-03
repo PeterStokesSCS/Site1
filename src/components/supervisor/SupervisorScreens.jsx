@@ -3,12 +3,50 @@ import BackHeader from "../shared/BackHeader";
 import { EmptyState } from "../shared/LoadingScreen";
 import {
   getHazardsByProject, createHazard, resolveHazard,
-  getDailyLogs, createDailyLog,
+  getDailyLogs, createDailyLog, getAttendanceForDay,
   getVariations, getMessages, sendMessage,
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
-import { supabase } from "../../lib/supabase";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
+
+// Local YYYY-MM-DD (not UTC) so "today" matches the supervisor's actual day
+function localDateStr(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function fmtT(iso) {
+  return iso ? new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true }) : "--";
+}
+
+// Renders a day's attendance roll (workers + visitors/subs) with durations
+function AttendanceRoll({ entries, now }) {
+  if (!entries) return <div style={{ fontSize: 12, color: "#444", padding: "6px 0" }}>Loading attendance…</div>;
+  if (entries.length === 0) return <div style={{ fontSize: 12, color: "#555", padding: "6px 0" }}>No one signed in</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {entries.map(e => {
+        const live = !e.outIso;
+        const dur = e.hours != null ? `${e.hours}h` : live ? `${Math.round(((now - new Date(e.inIso).getTime()) / 3600000) * 10) / 10}h · on site` : "—";
+        return (
+          <div key={e.kind + e.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#1a1a1a", borderRadius: 8, padding: "8px 10px" }}>
+            <span style={{ fontSize: 10, color: live ? "#22c55e" : "#555" }}>●</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: "#ccc" }}>{e.name} <span style={{ fontSize: 10, color: "#555", textTransform: "capitalize" }}>· {e.role}</span></div>
+              <div style={{ fontSize: 11, color: "#555" }}>{fmtT(e.inIso)} → {e.outIso ? fmtT(e.outIso) : "still on site"}</div>
+            </div>
+            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, color: live ? "#22c55e" : "#e07b39", flexShrink: 0 }}>{dur}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Expandable attendance for a past log (lazy-loads on expand)
+function LogAttendance({ projectId, dateStr }) {
+  const [entries, setEntries] = useState(null);
+  useEffect(() => { getAttendanceForDay(projectId, dateStr).then(({ data }) => setEntries(data)); }, [projectId, dateStr]);
+  return <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1e1e1e" }}><AttendanceRoll entries={entries} now={Date.now()} /></div>;
+}
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -99,29 +137,29 @@ export function DailyLogScreen({ project, user, onBack }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const [autoCount, setAutoCount] = useState(null);
+  const [roll, setRoll] = useState(null);       // today's attendance roll
+  const [now, setNow] = useState(Date.now());
+  const [expanded, setExpanded] = useState(null); // log id whose attendance is expanded
 
   useEffect(() => {
     getDailyLogs(project.id).then(({ data }) => { setLogs(data); setLoading(false); });
   }, [project.id]);
 
-  // When the log form opens, pre-fill the worker count from who's actually on site now
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
+
+  // When the form opens, load today's full attendance roll and pre-fill the headcount
   useEffect(() => {
     if (!showForm) return;
-    Promise.all([
-      supabase.from("timesheets").select("id").eq("project_id", project.id).is("clock_out", null),
-      supabase.from("site_visits").select("id").eq("project_id", project.id).is("sign_out", null),
-    ]).then(([t, v]) => {
-      const count = (t.data?.length || 0) + (v.data?.length || 0);
-      setAutoCount(count);
-      setForm(f => (f.workers_on_site === "" ? { ...f, workers_on_site: String(count) } : f));
+    getAttendanceForDay(project.id, localDateStr()).then(({ data }) => {
+      setRoll(data);
+      setForm(f => (f.workers_on_site === "" ? { ...f, workers_on_site: String(data.length) } : f));
     });
   }, [showForm, project.id]);
 
   const submit = async () => {
     if (!form.progress_notes) return;
     setSubmitting(true);
-    const { data } = await createDailyLog({ ...form, workers_on_site: parseInt(form.workers_on_site) || 0, project_id: project.id, submitted_by: user.id, log_date: TODAY });
+    const { data } = await createDailyLog({ ...form, workers_on_site: parseInt(form.workers_on_site) || 0, project_id: project.id, submitted_by: user.id, log_date: localDateStr() });
     if (data) { setLogs(prev => [data, ...prev]); setSubmitted(true); setShowForm(false); }
     post("/dailylogs", data).catch(() => {});
     setSubmitting(false);
@@ -135,17 +173,16 @@ export function DailyLogScreen({ project, user, onBack }) {
       {showForm && (
         <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 14, marginBottom: 14 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, color: "#14b8a6", marginBottom: 12 }}>{new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-            <div>
-              <div style={lbl}>Weather</div>
-              <select value={form.weather} onChange={e => setForm(f => ({ ...f, weather: e.target.value }))} style={inp}>
-                {["Fine","Overcast","Rain","Strong Wind","Hot"].map(w => <option key={w}>{w}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={lbl}>Workers on Site {autoCount != null && <span style={{ color: "#0ea5e9", textTransform: "none", letterSpacing: 0 }}>· {autoCount} on muster</span>}</div>
-              <input type="number" min="0" value={form.workers_on_site} onChange={e => setForm(f => ({ ...f, workers_on_site: e.target.value }))} placeholder="0" style={inp} />
-            </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={lbl}>Weather</div>
+            <select value={form.weather} onChange={e => setForm(f => ({ ...f, weather: e.target.value }))} style={inp}>
+              {["Fine","Overcast","Rain","Strong Wind","Hot"].map(w => <option key={w}>{w}</option>)}
+            </select>
+          </div>
+          {/* Attendance roll for today — auto from clock records */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={lbl}>On Site Today {roll != null && <span style={{ color: "#0ea5e9", textTransform: "none", letterSpacing: 0 }}>· {roll.length} {roll.length === 1 ? "person" : "people"}</span>}</div>
+            <AttendanceRoll entries={roll} now={now} />
           </div>
           {[
             { k: "progress_notes", l: "Work Completed *", ph: "What was done today..." },
@@ -170,10 +207,14 @@ export function DailyLogScreen({ project, user, onBack }) {
             <div key={log.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, color: "#ccc" }}>{new Date(log.log_date).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short" })}</div>
-                <span style={{ fontSize: 11, color: "#555" }}>{log.weather} · {log.workers_on_site} workers</span>
+                <span style={{ fontSize: 11, color: "#555" }}>{log.weather} · {log.workers_on_site} on site</span>
               </div>
               <div style={{ fontSize: 13, color: "#888", lineHeight: 1.5 }}>{log.progress_notes}</div>
               {log.issues && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 6 }}>⚠ {log.issues}</div>}
+              <button onClick={() => setExpanded(expanded === log.id ? null : log.id)} style={{ marginTop: 8, background: "none", border: "none", color: "#0ea5e9", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 0.3 }}>
+                {expanded === log.id ? "▾ Hide attendance" : "▸ Who was on site"}
+              </button>
+              {expanded === log.id && <LogAttendance projectId={project.id} dateStr={log.log_date} />}
             </div>
           ))
       }

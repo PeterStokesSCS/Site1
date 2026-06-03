@@ -181,6 +181,30 @@ export async function approveTimesheet(id, approverId) {
   return { error };
 }
 
+// Everyone who was on site on a given LOCAL day (dateStr = YYYY-MM-DD) for a project —
+// workers (timesheets) + visitors/subs (site_visits), with durations. Captures anyone
+// whose shift started that day, whether they've left or are still on site.
+export async function getAttendanceForDay(projectId, dateStr) {
+  const start = new Date(`${dateStr}T00:00:00`);
+  const end = new Date(start.getTime() + 24 * 3600 * 1000);
+  const [ts, sv, pr] = await Promise.all([
+    supabase.from("timesheets").select("*").eq("project_id", projectId).gte("clock_in", start.toISOString()).lt("clock_in", end.toISOString()),
+    supabase.from("site_visits").select("*").eq("project_id", projectId).gte("sign_in", start.toISOString()).lt("sign_in", end.toISOString()),
+    supabase.from("profiles").select("id, full_name, role"),
+  ]);
+  const pmap = Object.fromEntries((pr.data || []).map(p => [p.id, p]));
+  const hrs = (inIso, outIso) => outIso ? Math.round(((new Date(outIso) - new Date(inIso)) / 3600000) * 10) / 10 : null;
+  const workers = (ts.data || []).map(t => ({
+    id: t.id, kind: "worker", name: pmap[t.worker_id]?.full_name || "Worker", role: pmap[t.worker_id]?.role || "worker",
+    inIso: t.clock_in, outIso: t.clock_out, hours: t.hours_worked ?? hrs(t.clock_in, t.clock_out),
+  }));
+  const visits = (sv.data || []).map(v => ({
+    id: v.id, kind: "visit", name: v.visitor_name, role: v.type || "visitor",
+    inIso: v.sign_in, outIso: v.sign_out, hours: hrs(v.sign_in, v.sign_out),
+  }));
+  return { data: [...workers, ...visits].sort((a, b) => (a.inIso || "").localeCompare(b.inIso || "")) };
+}
+
 // ── Daily Logs ─────────────────────────────────────────────────────────────────
 export async function getDailyLogs(projectId) {
   const { data, error } = await supabase
