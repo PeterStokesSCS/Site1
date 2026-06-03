@@ -192,6 +192,8 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", assignee_id: "", due_date: TODAY, priority: "medium", description: "" });
   const [allTasks, setAllTasks] = useState(tasks);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => { setAllTasks(tasks); }, [tasks]);
 
@@ -205,9 +207,25 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
   };
 
   const saveTask = async () => {
-    if (!form.title) return;
-    const { data } = await createTask({ ...form, project_id: projectId, created_by: user.id });
-    if (data) { setAllTasks(prev => [data, ...prev]); setShowForm(false); setForm({ title: "", assignee_id: "", due_date: TODAY, priority: "medium", description: "" }); }
+    if (!form.title.trim()) { setSaveError("Enter a task title."); return; }
+    setSaving(true);
+    setSaveError(null);
+    // UUID/date columns reject empty strings — coerce blanks to null
+    const payload = {
+      title: form.title.trim(),
+      project_id: projectId,
+      created_by: user.id,
+      assignee_id: form.assignee_id || null,
+      due_date: form.due_date || null,
+      priority: form.priority,
+      description: form.description?.trim() || null,
+    };
+    const { data, error } = await createTask(payload);
+    setSaving(false);
+    if (error) { setSaveError(error.message); return; }
+    setAllTasks(prev => [data, ...prev]);
+    setShowForm(false);
+    setForm({ title: "", assignee_id: "", due_date: TODAY, priority: "medium", description: "" });
   };
 
   const filtered = filter === "all" ? allTasks.filter(t => t.status !== "completed")
@@ -242,7 +260,8 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
               ))}
             </div>
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" rows={2} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
-            <button onClick={saveTask} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "#f59e0b", color: "#0c0c0c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>CREATE TASK</button>
+            {saveError && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 10 }}>{saveError}</div>}
+            <button onClick={saveTask} disabled={saving} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: saving ? "#555" : "#f59e0b", color: "#0c0c0c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}>{saving ? "CREATING..." : "CREATE TASK"}</button>
           </div>
         )}
 
