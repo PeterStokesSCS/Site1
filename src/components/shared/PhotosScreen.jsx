@@ -39,11 +39,14 @@ function Lightbox({ photo, onClose, onCaption }) {
 export default function PhotosScreen({ project, user, onBack }) {
   const [photos, setPhotos] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [err, setErr] = useState(null);
 
   useEffect(() => { getPhotos(project.id).then(({ data }) => setPhotos(data)); }, [project.id]);
 
   const onUploaded = async (url) => {
-    const { data } = await addPhoto({ project_id: project.id, url, taken_by: user.id });
+    setErr(null);
+    const { data, error } = await addPhoto({ project_id: project.id, url, taken_by: user.id });
+    if (error) { setErr(error.message || "Could not save photo"); return; }
     if (data) setPhotos(prev => [data, ...(prev || [])]);
   };
 
@@ -63,6 +66,7 @@ export default function PhotosScreen({ project, user, onBack }) {
         }
       />
       <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+        {err && <div style={{ background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "10px 14px", color: "#ef4444", fontSize: 13, marginBottom: 10 }}>⚠ {err}</div>}
         {photos === null ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
             {[1,2,3,4,5,6].map(i => <div key={i} style={{ aspectRatio: "1", background: "#141414", borderRadius: 8 }} />)}
