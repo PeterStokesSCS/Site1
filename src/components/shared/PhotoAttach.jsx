@@ -81,7 +81,12 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
           </div>
           <div style={{ padding: 16, maxWidth: 480, margin: "0 auto", width: "100%" }} onClick={e => e.stopPropagation()}>
             {view.caption && <div style={{ fontSize: 14, color: "#ccc", marginBottom: 8 }}>{view.caption}</div>}
-            {(() => { const g = gpsStatusLabel({ gps: view.gps_lat != null ? { lat: view.gps_lat } : null, distanceM: view.gps_distance_from_site_m }); return <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>{g.label}{view.taken_at ? ` · ${new Date(view.taken_at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}</div>; })()}
+            {(() => { const g = gpsStatusLabel({ gps: view.gps_lat != null ? { lat: view.gps_lat } : null, distanceM: view.gps_distance_from_site_m }); return (
+              <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>
+                {g.label}{view.taken_at ? ` · ${new Date(view.taken_at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
+                {view.gps_lat != null && view.gps_lng != null && <a href={`https://www.google.com/maps?q=${view.gps_lat},${view.gps_lng}`} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", marginLeft: 8, textDecoration: "none" }}>· View on map ↗</a>}
+              </div>
+            ); })()}
             {canSetClient ? (
               <button onClick={() => { toggleClient(view); setView(v => ({ ...v, client_visible: !v.client_visible })); }} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer" }}>
                 <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${view.client_visible ? "#22c55e" : "#555"}`, background: view.client_visible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -36,7 +36,12 @@ function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
         <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>
           {photo.taken_by?.full_name || "Unknown"} · {new Date(photo.taken_at || photo.created_at).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
         </div>
-        {(() => { const g = gpsStatusLabel({ gps: photo.gps_lat != null ? { lat: photo.gps_lat } : null, distanceM: photo.gps_distance_from_site_m }); return <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>{g.label}</div>; })()}
+        {(() => { const g = gpsStatusLabel({ gps: photo.gps_lat != null ? { lat: photo.gps_lat } : null, distanceM: photo.gps_distance_from_site_m }); return (
+          <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>
+            {g.label}
+            {photo.gps_lat != null && photo.gps_lng != null && <a href={`https://www.google.com/maps?q=${photo.gps_lat},${photo.gps_lng}`} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", marginLeft: 8, textDecoration: "none" }}>· View on map ↗</a>}
+          </div>
+        ); })()}
         <div style={{ display: "flex", gap: 8 }}>
           <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Add a caption…" style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif" }} />
           <button onClick={save} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: saved ? "#22c55e" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>{saved ? "SAVED" : "SAVE"}</button>
