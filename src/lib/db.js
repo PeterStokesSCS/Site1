@@ -289,6 +289,30 @@ export async function getAllDocuments() {
   return { data: data || [], error };
 }
 
+// ── Commercial items (contracts, POs, quotes, invoices, receipts) ──────────────
+export async function getCommercialItems(projectId) {
+  const { data, error } = await supabase
+    .from("commercial_items")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function createCommercialItem(payload) {
+  const { data, error } = await supabase
+    .from("commercial_items")
+    .insert(payload)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function updateCommercialStatus(id, status) {
+  const { error } = await supabase.from("commercial_items").update({ status }).eq("id", id);
+  return { error };
+}
+
 // ── Milestones ─────────────────────────────────────────────────────────────────
 export async function getMilestones(projectId) {
   const { data, error } = await supabase

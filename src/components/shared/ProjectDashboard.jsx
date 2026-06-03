@@ -8,6 +8,7 @@ import IssuesFeature from "../supervisor/IssuesFeature";
 import OnSiteFeature from "../supervisor/OnSiteFeature";
 import { SafetyScreen, DailyLogScreen, VariationsScreen, ChatScreen } from "../supervisor/SupervisorScreens";
 import OverviewScreen from "./OverviewScreen";
+import CommercialModule from "./CommercialModule";
 
 // §7 Project Dashboard — the project becomes its own workspace.
 // Shared by Builder (drill-in from project list) and Supervisor (home screen).
@@ -71,7 +72,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "overview":      return <OverviewScreen {...props} onNav={setScreen} />;
       case "plans":         return <Soon title="Plans" {...props} />;
       case "photos":        return <Soon title="Photos" {...props} />;
-      case "commercial":    return <Soon title="Commercial" {...props} />;
+      case "commercial":    return <CommercialModule {...props} />;
       default: break;
     }
   }
