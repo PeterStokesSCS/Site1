@@ -344,7 +344,7 @@ export default function TasksFeature({ project, user, onBack }) {
           badge={overdueCount(projectTasks)} badgeColor="#ef4444"
           badge2={todayCount(projectTasks)} badge2Color="#f97316"
           onClick={() => setView("project")} />
-        <LandingTile title="Others' Tasks" subtitle="Tasks assigned to the rest of the team" icon="👷" accent="#3b82f6" bg="#0c1a33"
+        <LandingTile title="Team Tasks" subtitle="Tasks assigned to the rest of the team" icon="👷" accent="#3b82f6" bg="#0c1a33"
           badge={overdueCount(otherTasks)} badgeColor="#ef4444"
           badge2={todayCount(otherTasks)} badge2Color="#f97316"
           onClick={() => setView("others")} />
@@ -365,7 +365,7 @@ function OthersTasksList({ tasks, workers, user, onBack }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
-      <BackHeader title="Others' Tasks" onBack={onBack} />
+      <BackHeader title="Team Tasks" onBack={onBack} />
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
         {byWorker.length === 0
           ? <EmptyState icon="👷" title="No tasks assigned to others" />

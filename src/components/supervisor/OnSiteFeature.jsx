@@ -175,7 +175,21 @@ export default function OnSiteFeature({ project, user, onBack }) {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
+  const [signOutTarget, setSignOutTarget] = useState(null); // { kind: 'worker'|'visit', id, name, signIn }
   const [tick, setTick] = useState(0);
+
+  const confirmSignOut = async (target, outIso) => {
+    if (target.kind === "worker") {
+      const ts = timesheets.find(t => t.id === target.id);
+      const hours = Math.round(((new Date(outIso) - new Date(ts.clock_in)) / 3600000) * 100) / 100;
+      await supabase.from("timesheets").update({ clock_out: outIso, hours_worked: hours }).eq("id", target.id);
+      setTimesheets(prev => prev.filter(t => t.id !== target.id));
+    } else {
+      await supabase.from("site_visits").update({ sign_out: outIso }).eq("id", target.id);
+      setVisits(prev => prev.filter(v => v.id !== target.id));
+    }
+    setSignOutTarget(null);
+  };
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60000);
@@ -234,16 +248,16 @@ export default function OnSiteFeature({ project, user, onBack }) {
         {loading ? null : workers.length === 0
           ? <div style={{ fontSize: 13, color: "#444", marginBottom: 20 }}>No workers clocked in yet today</div>
           : workers.map(w => (
-            <button key={w.id} onClick={() => setSelectedWorker(w)} style={{ width: "100%", textAlign: "left", background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+            <div key={w.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
               <StatusDot type="green" />
-              <div style={{ flex: 1 }}>
+              <button onClick={() => setSelectedWorker(w)} style={{ flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                 <div style={{ fontSize: 14, color: "#ccc", fontWeight: 600 }}>{w.full_name}</div>
                 <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
                   In {fmtTime(w.timesheet?.clock_in)} · {elapsed(w.timesheet?.clock_in)} on site
                 </div>
-              </div>
-              <span style={{ color: "#444", fontSize: 18 }}>›</span>
-            </button>
+              </button>
+              <button onClick={() => setSignOutTarget({ kind: "worker", id: w.timesheet.id, name: w.full_name, signIn: w.timesheet.clock_in })} style={signOutBtn}>OUT</button>
+            </div>
           ))
         }
 
@@ -261,7 +275,7 @@ export default function OnSiteFeature({ project, user, onBack }) {
                     {v.type === "subcontractor" && !v.swms_acknowledged && <span style={{ color: "#f59e0b", marginLeft: 6 }}>⚠ SWMS not confirmed</span>}
                   </div>
                 </div>
-                <span style={{ fontSize: 11, fontFamily: "Barlow Condensed, sans-serif", color: "#555", textTransform: "capitalize" }}>{v.type}</span>
+                <button onClick={() => setSignOutTarget({ kind: "visit", id: v.id, name: v.visitor_name, signIn: v.sign_in })} style={signOutBtn}>OUT</button>
               </div>
             ))}
           </>
@@ -271,8 +285,51 @@ export default function OnSiteFeature({ project, user, onBack }) {
           <EmptyState icon="👷" title="Nobody on site yet" subtitle="Workers appear here when they clock in. Use + ADD to sign in visitors or subs." />
         )}
       </div>
+
+      {signOutTarget && <SignOutModal target={signOutTarget} onConfirm={confirmSignOut} onCancel={() => setSignOutTarget(null)} />}
     </div>
   );
 }
+
+// ── Sign-out confirmation modal ────────────────────────────────────────────────
+function SignOutModal({ target, onConfirm, onCancel }) {
+  // datetime-local needs local time without timezone suffix
+  const toLocalInput = (d) => {
+    const off = d.getTimezoneOffset();
+    return new Date(d.getTime() - off * 60000).toISOString().slice(0, 16);
+  };
+  const [outLocal, setOutLocal] = useState(toLocalInput(new Date()));
+  const outIso = new Date(outLocal).toISOString();
+  const ms = new Date(outIso) - new Date(target.signIn);
+  const hrs = Math.max(0, ms) / 3600000;
+  const dur = `${Math.floor(hrs)}h ${Math.round((hrs % 1) * 60)}m`;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={e => e.target === e.currentTarget && onCancel()}>
+      <div style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 14, width: "100%", maxWidth: 380, padding: 22 }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, fontWeight: 700, color: "#f0f0f0", marginBottom: 6 }}>SIGN OUT</div>
+        <div style={{ fontSize: 14, color: "#ccc", marginBottom: 16 }}>{target.name}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #1e1e1e" }}>
+          <span style={{ fontSize: 12, color: "#555", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase" }}>Signed in</span>
+          <span style={{ fontSize: 14, color: "#ccc" }}>{fmtTime(target.signIn)}</span>
+        </div>
+        <div style={{ padding: "12px 0" }}>
+          <div style={{ fontSize: 12, color: "#555", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", marginBottom: 6 }}>Sign-out time</div>
+          <input type="datetime-local" value={outLocal} onChange={e => setOutLocal(e.target.value)} style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 15, padding: "10px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0 16px" }}>
+          <span style={{ fontSize: 12, color: "#555", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase" }}>Total on site</span>
+          <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: "#e07b39" }}>{dur}</span>
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14 }}>CANCEL</button>
+          <button onClick={() => onConfirm(target, outIso)} style={{ flex: 2, padding: "12px", borderRadius: 8, border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, letterSpacing: 0.5 }}>CONFIRM SIGN OUT</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const signOutBtn = { padding: "6px 12px", borderRadius: 8, border: "1px solid #7f1d1d", background: "#2a0c0c", color: "#ef4444", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, letterSpacing: 0.5, cursor: "pointer", flexShrink: 0 };
 
 const inp = { width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box" };

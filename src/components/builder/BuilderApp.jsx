@@ -13,67 +13,6 @@ const TABS = [
   { id: "team",       label: "Team",       icon: "👤" },
 ];
 
-// ── New Project Modal ──────────────────────────────────────────────────────────
-function NewProjectModal({ onSave, onClose }) {
-  const [form, setForm] = useState({
-    job_number: "", street: "", suburb: "", client_name: "",
-    client_email: "", client_phone: "", budget: "", phase: "Planning",
-    status: "planning", health: "green",
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  const save = async () => {
-    if (!form.job_number.trim()) { setError("Job Number is required."); return; }
-    if (!form.street.trim()) { setError("Street Address is required."); return; }
-    setSaving(true);
-    setError(null);
-    const { data, error } = await createProject({ ...form, budget: parseFloat(form.budget) || null });
-    if (error) { setError(error.message); setSaving(false); return; }
-    onSave(data);
-  };
-
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 14, width: "100%", maxWidth: 500, padding: 24, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}>
-        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f0f0", marginBottom: 20 }}>NEW PROJECT</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[
-            { k: "job_number", l: "Job Number *", ph: "SCS-004" },
-            { k: "phase",      l: "Current Phase", ph: "Planning" },
-          ].map(f => (
-            <div key={f.k} style={field}>
-              <label style={lbl}>{f.l}</label>
-              <input value={form[f.k]} onChange={e => set(f.k, e.target.value)} placeholder={f.ph} style={inp} />
-            </div>
-          ))}
-        </div>
-        {[
-          { k: "street",       l: "Street Address *", ph: "12 Example Street" },
-          { k: "suburb",       l: "Suburb / State",   ph: "Sassafras VIC 3787" },
-          { k: "client_name",  l: "Client Name",      ph: "John & Jane Smith" },
-          { k: "client_email", l: "Client Email",     ph: "client@email.com" },
-          { k: "client_phone", l: "Client Phone",     ph: "0400 000 000" },
-          { k: "budget",       l: "Budget ($)",       ph: "350000" },
-        ].map(f => (
-          <div key={f.k} style={field}>
-            <label style={lbl}>{f.l}</label>
-            <input value={form[f.k]} onChange={e => set(f.k, e.target.value)} placeholder={f.ph} style={inp} />
-          </div>
-        ))}
-        {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 10 }}>{error}</div>}
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "12px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", cursor: "pointer" }}>Cancel</button>
-          <button onClick={save} disabled={saving} style={{ flex: 2, padding: "12px", borderRadius: 8, border: "none", background: saving ? "#555" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: saving ? "not-allowed" : "pointer" }}>
-            {saving ? "SAVING..." : "CREATE PROJECT"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Project health card ────────────────────────────────────────────────────────
 function ProjectCard({ project }) {
   const h = HEALTH[project.health] || HEALTH.green;
@@ -128,12 +67,12 @@ function DashboardTab({ projects, timesheets, onNavigate }) {
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
         {[
-          { v: active,    l: "Active Projects",       c: "#e07b39", tab: "projects" },
+          { v: active,    l: "Active Projects",       c: "#e07b39", tab: "projects", filter: { status: "active" } },
           { v: pendingTs, l: "Timesheets to Approve", c: "#f59e0b", tab: "labour" },
-          { v: projects.filter(p => p.health === "red").length,   l: "At Risk",    c: "#ef4444", tab: "projects" },
-          { v: projects.filter(p => p.health === "amber").length, l: "Attention",  c: "#f59e0b", tab: "projects" },
+          { v: projects.filter(p => p.health === "red").length,   l: "At Risk",    c: "#ef4444", tab: "projects", filter: { health: "red" } },
+          { v: projects.filter(p => p.health === "amber").length, l: "Attention",  c: "#f59e0b", tab: "projects", filter: { health: "amber" } },
         ].map(s => (
-          <button key={s.l} onClick={() => s.tab && onNavigate(s.tab)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px 20px", flex: "1 1 130px", minWidth: 120, cursor: "pointer", textAlign: "left" }}>
+          <button key={s.l} onClick={() => onNavigate(s.tab, s.filter)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px 20px", flex: "1 1 130px", minWidth: 120, cursor: "pointer", textAlign: "left" }}>
             <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 36, fontWeight: 700, color: s.c, lineHeight: 1 }}>{s.v}</div>
             <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>{s.l}</div>
           </button>
@@ -149,8 +88,10 @@ function DashboardTab({ projects, timesheets, onNavigate }) {
 }
 
 // ── Projects tab ───────────────────────────────────────────────────────────────
-function ProjectsTab({ projects, onProjectCreated }) {
+function ProjectsTab({ projects, onProjectCreated, initialFilter }) {
   const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState(initialFilter || null); // {status} | {health} | null
+  useEffect(() => { setFilter(initialFilter || null); }, [initialFilter]);
   const [form, setForm] = useState({ job_number: "", street: "", suburb: "", client_name: "", client_email: "", client_phone: "", budget: "", phase: "Planning", status: "planning", health: "green" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -224,10 +165,35 @@ function ProjectsTab({ projects, onProjectCreated }) {
         </div>
       )}
 
-      {projects.length === 0 && !showForm
-        ? <EmptyState icon="🏗" title="No projects yet" subtitle="Click + NEW PROJECT to get started" />
-        : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>{projects.map(p => <ProjectCard key={p.id} project={p} />)}</div>
-      }
+      {/* Filter chips */}
+      {projects.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          {[
+            { key: null,                  label: "All" },
+            { key: { status: "active" },  label: "Active" },
+            { key: { status: "planning" },label: "Planning" },
+            { key: { health: "red" },     label: "At Risk" },
+            { key: { health: "amber" },   label: "Attention" },
+          ].map(f => {
+            const on = JSON.stringify(filter) === JSON.stringify(f.key);
+            return (
+              <button key={f.label} onClick={() => setFilter(f.key)} style={{ padding: "6px 14px", borderRadius: 16, border: `1px solid ${on ? "#e07b39" : "#2a2a2a"}`, background: on ? "#2a1800" : "transparent", color: on ? "#e07b39" : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{f.label}</button>
+            );
+          })}
+        </div>
+      )}
+
+      {(() => {
+        const shown = projects.filter(p => {
+          if (!filter) return true;
+          if (filter.status) return p.status === filter.status;
+          if (filter.health) return p.health === filter.health;
+          return true;
+        });
+        if (projects.length === 0 && !showForm) return <EmptyState icon="🏗" title="No projects yet" subtitle="Click + NEW PROJECT to get started" />;
+        if (shown.length === 0) return <EmptyState icon="🔍" title="No projects match" subtitle="Try a different filter" />;
+        return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>{shown.map(p => <ProjectCard key={p.id} project={p} />)}</div>;
+      })()}
     </div>
   );
 }
@@ -362,6 +328,7 @@ function TeamTab() {
 // ── Builder shell ──────────────────────────────────────────────────────────────
 export default function BuilderApp({ user }) {
   const [tab, setTab] = useState("dashboard");
+  const [projectFilter, setProjectFilter] = useState(null);
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -374,6 +341,9 @@ export default function BuilderApp({ user }) {
     });
   }, []);
 
+  // Dashboard tiles navigate to a tab, optionally pre-filtering the Projects list
+  const navigate = (toTab, filter = null) => { setProjectFilter(filter); setTab(toTab); };
+
   const handleApprove = async (id) => {
     await approveTimesheet(id, user.id);
     setTimesheets(prev => prev.map(t => t.id === id ? { ...t, status: "approved" } : t));
@@ -382,8 +352,8 @@ export default function BuilderApp({ user }) {
   const renderTab = () => {
     if (loading) return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3].map(i => <CardSkeleton key={i} />)}</div>;
     switch (tab) {
-      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={setTab} />;
-      case "projects":   return <ProjectsTab projects={projects} onProjectCreated={p => setProjects(prev => [p, ...prev])} />;
+      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} />;
+      case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} />;
       case "labour":     return <LabourTab timesheets={timesheets} onApprove={handleApprove} user={user} />;
       case "team":       return <TeamTab />;
       default: return <div style={{ color: "#444", padding: "40px 0", textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>Coming in Stage 3</div>;
@@ -399,7 +369,7 @@ export default function BuilderApp({ user }) {
         </div>
         <nav style={{ flex: 1, padding: "10px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 14px", border: "none", borderRadius: 8, borderLeft: `3px solid ${tab === t.id ? "#e07b39" : "transparent"}`, background: tab === t.id ? "#1e1e1e" : "transparent", color: tab === t.id ? "#e07b39" : "#666", cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.12s" }}>
+            <button key={t.id} onClick={() => navigate(t.id)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 14px", border: "none", borderRadius: 8, borderLeft: `3px solid ${tab === t.id ? "#e07b39" : "transparent"}`, background: tab === t.id ? "#1e1e1e" : "transparent", color: tab === t.id ? "#e07b39" : "#666", cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, letterSpacing: 0.3, textTransform: "uppercase", transition: "all 0.12s" }}>
               <span style={{ fontSize: 16 }}>{t.icon}</span>{t.label}
             </button>
           ))}
@@ -422,7 +392,7 @@ export default function BuilderApp({ user }) {
         <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>{renderTab()}</main>
         <nav style={{ background: "#111", borderTop: "1px solid #1e1e1e", display: "flex" }} className="builder-bottomnav">
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 4px 12px", border: "none", background: "transparent", color: tab === t.id ? "#e07b39" : "#555", borderTop: tab === t.id ? "2px solid #e07b39" : "2px solid transparent", cursor: "pointer" }}>
+            <button key={t.id} onClick={() => navigate(t.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 4px 12px", border: "none", background: "transparent", color: tab === t.id ? "#e07b39" : "#555", borderTop: tab === t.id ? "2px solid #e07b39" : "2px solid transparent", cursor: "pointer" }}>
               <span style={{ fontSize: 17 }}>{t.icon}</span>
               <span style={{ fontSize: 9, marginTop: 3, fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase" }}>{t.label}</span>
             </button>
