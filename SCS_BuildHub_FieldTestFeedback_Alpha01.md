@@ -18,18 +18,18 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 |---|---|---|---|
 | C1 | **Task creation fails / saves nothing** | Supervisor → Tasks | ✅ Fixed (empty-string UUID + swallowed error) |
 | C2 | **Project Dashboard navigation** — clicking a project (Builder *and* Supervisor) opens a dedicated Project Dashboard: Overview, Plans, Daily Logs, Tasks, Safety, Variations, Photos, Communication, Financials | Builder → Projects | ⬜ |
-| C3 | **On Site sign-out** — each on-site person gets a SIGN OUT action → confirmation dialog → review/adjust time → confirm; system calculates total hours | Supervisor → On Site | ⬜ |
+| C3 | **On Site sign-out** — each on-site person gets a SIGN OUT action → confirmation dialog → review/adjust time → confirm; system calculates total hours | Supervisor → On Site | ✅ Done (workers + visitors/subs) |
 | C4 | **Variations as a legally defensible record** — timestamp, user, photos, attachments, scope, cost impact, client approval, digital signature, approval date, revision history | Commercial | ⬜ |
 
 ## HIGH
 | # | Item | Area | Status |
 |---|---|---|---|
-| H1 | Builder dashboard tiles clickable → Active Projects (filtered list), Approvals (approvals dashboard), At Risk (red projects), Attention (amber projects) | Builder → Dashboard | ⬜ |
+| H1 | Builder dashboard tiles clickable → Active Projects (filtered list), Approvals (approvals dashboard), At Risk (red projects), Attention (amber projects) | Builder → Dashboard | ✅ Done |
 | H2 | Rename **Variations → Commercial**; columns: Contracts, Purchase Orders, Quotes, Invoices, Receipts, Variations, Cost Tracking — each opens its own page (Approved / Pending / Revision Required, by project) | Builder | ⬜ |
 | H3 | **Team** restructured: Internal Staff / Subcontractors / Suppliers, with filter | Builder → Team | ⬜ |
 | H4 | **Team member detail page** — contact, address, licences, certificates, qualifications, emergency contact; history: projects, dates, hours, site history; future: productivity & estimating data | Builder → Team | ⬜ |
-| H5 | **Persist last viewed project** — Supervisor reopens app on the project they were last on | Supervisor | ⬜ |
-| H6 | **Current project indicator** — top corner: project + ON SITE + live timer (green); OFF SITE shows last project (red). Prevents wrong timesheet records | Supervisor | ⬜ |
+| H5 | **Persist last viewed project** — Supervisor reopens app on the project they were last on | Supervisor | ✅ Done |
+| H6 | **Current project indicator** — top corner: project + ON SITE + live timer (green); OFF SITE shows last project (red). Prevents wrong timesheet records | Supervisor | ✅ Done (tap to clock in/out) |
 | H7 | **Project-specific metrics** — On Site / Tasks Due / Issues / Hazards must reflect the selected project only, not company-wide | Supervisor | ⬜ (verify — believed already project-scoped) |
 | H8 | **Supplier/sub auto-complete** on the On Site Company field | Supervisor → On Site | ⬜ |
 | H9 | **Self sign-out sync** — sub signing out on their own login reflects on supervisor muster | On Site | ⬜ |
@@ -50,7 +50,7 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 ## LOW
 | # | Item | Area | Status |
 |---|---|---|---|
-| L1 | Rename **Other Tasks → Team Tasks** | Tasks | ⬜ |
+| L1 | Rename **Other Tasks → Team Tasks** | Tasks | ✅ Done |
 
 ---
 
