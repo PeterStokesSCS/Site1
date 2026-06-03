@@ -2,6 +2,7 @@ export default function AppTile({ tileKey, icon, label, accent, bg, badge, onCli
   return (
     <button
       onClick={onClick}
+      data-testid={`tile-${(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
       style={{
         aspectRatio: wide ? "2 / 1" : "1 / 1",
         gridColumn: wide ? "span 2" : "span 1",
