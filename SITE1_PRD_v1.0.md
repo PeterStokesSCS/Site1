@@ -118,7 +118,7 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | PRD § | Area | Status | Notes |
 |---|---|---|---|
 | 5 | Builder dashboard + clickable tiles | 🟡 | Tiles clickable & filter Projects (H1 ✅). Approvals tile → Labour; no dedicated approvals dashboard yet. |
-| 6–7 | **Project Dashboard** | 🟡 | Builder project cards now open a Project Dashboard with the §7 tile grid, reusing existing screens (Tasks/Attendance/Daily Log/Safety/Issues/Variations/Comms). Placeholders: Overview, Plans, Photos, Commercial. Supervisor not yet routed through it (Builder-only first pass). |
+| 6–7 | **Project Dashboard** | ✅ | Shared by Builder (drill-in from project list) and Supervisor (home). All 11 tiles live: Overview, Project Docs (plans/permits/specs w/ current-superseded), Tasks, Attendance, Daily Logs, Photos (gallery + camera), Safety, Issues, Variations, Commercial, Comms. No placeholders remaining. |
 | 8 | Supervisor dashboard | ✅ | Project-scoped metrics ✅, current-project indicator + timer ✅ (H6), session persistence ✅ (H5). |
 | 9 | Attendance (currently "On Site") | 🟡 | Sign-in (manual + sub self sign-in) ✅, sign-out + time calc ✅ (C3). Missing: Today/History tabs + calendar (H10), supplier autocomplete (H8), self sign-out sync (H9). Rename On Site → Attendance pending. |
 | 10 | Tasks | 🟡 | Create/assign/priority/status/comments/reassign ✅ (C1 fixed). Missing: due **time** + attachments (H11). Categories renamed ✅ (L1). |
