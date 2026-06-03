@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile } from "../../lib/db";
+import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
 import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
@@ -111,6 +112,10 @@ function ProjectsTab({ projects, onProjectCreated, initialFilter, onOpenProject 
     setShowForm(false);
     setForm({ job_number: "", street: "", suburb: "", client_name: "", client_email: "", client_phone: "", budget: "", phase: "Planning", status: "planning", health: "green" });
     setSaving(false);
+    // Best-effort: geocode the address so photos can be verified on-site
+    geocodeAddress([form.street, form.suburb].filter(Boolean).join(", ")).then(coords => {
+      if (coords) updateProject(data.id, coords);
+    });
   };
 
   return (

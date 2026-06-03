@@ -2,8 +2,33 @@ import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState, Skeleton } from "./LoadingScreen";
 import { HEALTH } from "../../lib/theme";
-import { getMilestones, getDailyLogs, getHazardsByProject, getIssues, getVariations } from "../../lib/db";
+import { getMilestones, getDailyLogs, getHazardsByProject, getIssues, getVariations, updateProject } from "../../lib/db";
+import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
+
+// Builder/Supervisor prompt to geocode a project's address so photos verify on-site
+function SetSiteLocation({ project }) {
+  const [state, setState] = useState(project.lat != null ? "set" : "idle"); // idle | working | set | fail
+  if (state === "set") return null;
+  const run = async () => {
+    setState("working");
+    const coords = await geocodeAddress([project.street, project.suburb].filter(Boolean).join(", "));
+    if (coords) { await updateProject(project.id, coords); setState("set"); }
+    else setState("fail");
+  };
+  return (
+    <div style={{ background: "#0c1a33", border: "1px solid #3b82f644", borderRadius: 12, padding: "12px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
+      <span style={{ fontSize: 20 }}>📍</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, color: "#ccc" }}>Site location not set</div>
+        <div style={{ fontSize: 11, color: "#555" }}>{state === "fail" ? "Couldn't find the address — check it's correct" : "Enables on-site photo verification"}</div>
+      </div>
+      <button onClick={run} disabled={state === "working"} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#3b82f6", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+        {state === "working" ? "LOCATING…" : "SET FROM ADDRESS"}
+      </button>
+    </div>
+  );
+}
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -63,6 +88,7 @@ export default function OverviewScreen({ project, user, onBack, onNav }) {
           </>
         ) : (
           <>
+            {(user?.role === "builder" || user?.role === "supervisor") && <SetSiteLocation project={project} />}
             {/* Stage + progress */}
             <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px", marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
