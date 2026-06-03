@@ -198,9 +198,10 @@ export default function OnSiteFeature({ project, user, onBack }) {
   }, []);
 
   useEffect(() => {
+    // "On site now" = open shift (no clock_out / sign_out), date-agnostic.
     Promise.all([
-      supabase.from("timesheets").select("*, worker:profiles(id, full_name, role)").eq("project_id", project.id).eq("work_date", TODAY).is("clock_out", null),
-      supabase.from("site_visits").select("*").eq("project_id", project.id).gte("sign_in", new Date().toISOString().slice(0, 10) + "T00:00:00Z").is("sign_out", null),
+      supabase.from("timesheets").select("*, worker:profiles(id, full_name, role)").eq("project_id", project.id).is("clock_out", null),
+      supabase.from("site_visits").select("*").eq("project_id", project.id).is("sign_out", null),
       supabase.from("profiles").select("*"),
     ]).then(([t, v, p]) => {
       setTimesheets(t.data || []);

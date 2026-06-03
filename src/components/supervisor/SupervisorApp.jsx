@@ -43,8 +43,8 @@ export default function SupervisorApp({ user }) {
       getTasksByProject(projectId),
       getIssues(projectId),
       getHazardsByProject(projectId),
-      supabase.from("timesheets").select("id").eq("project_id", projectId).eq("work_date", TODAY).is("clock_out", null),
-      supabase.from("site_visits").select("id").eq("project_id", projectId).gte("sign_in", TODAY + "T00:00:00Z").is("sign_out", null),
+      supabase.from("timesheets").select("id").eq("project_id", projectId).is("clock_out", null),
+      supabase.from("site_visits").select("id").eq("project_id", projectId).is("sign_out", null),
     ]).then(([t, i, h, ts, sv]) => {
       setStats({
         onSite:  (ts.data?.length || 0) + (sv.data?.length || 0),

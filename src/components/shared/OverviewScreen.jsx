@@ -30,8 +30,8 @@ export default function OverviewScreen({ project, user, onBack, onNav }) {
       getHazardsByProject(project.id),
       getIssues(project.id),
       getVariations(project.id),
-      supabase.from("timesheets").select("id").eq("project_id", project.id).eq("work_date", TODAY).is("clock_out", null),
-      supabase.from("site_visits").select("id").eq("project_id", project.id).gte("sign_in", TODAY + "T00:00:00Z").is("sign_out", null),
+      supabase.from("timesheets").select("id").eq("project_id", project.id).is("clock_out", null),
+      supabase.from("site_visits").select("id").eq("project_id", project.id).is("sign_out", null),
     ]).then(([ms, dl, hz, iss, vr, ts, sv]) => {
       const hazards = hz.data;
       const issues = iss.data;

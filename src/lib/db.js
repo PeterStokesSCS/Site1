@@ -120,17 +120,18 @@ export async function clockIn(workerId, projectId) {
 }
 
 export async function clockOut(workerId) {
-  const today = new Date().toISOString().slice(0, 10);
   const clockOutTime = new Date().toISOString();
 
-  // Find today's open timesheet
+  // Find the worker's latest OPEN shift (no clock_out) — date-agnostic so a
+  // pre-10am (UTC-yesterday) clock-in still closes correctly.
   const { data: existing } = await supabase
     .from("timesheets")
     .select("*")
     .eq("worker_id", workerId)
-    .eq("work_date", today)
     .is("clock_out", null)
-    .single();
+    .order("clock_in", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   if (!existing) return { error: new Error("No active clock-in found") };
 
@@ -149,14 +150,15 @@ export async function clockOut(workerId) {
   return { data, error };
 }
 
+// "Are you currently on site" = do you have an open shift (clock_out is null).
 export async function getTodayClockIn(workerId) {
-  const today = new Date().toISOString().slice(0, 10);
   const { data } = await supabase
     .from("timesheets")
     .select("*")
     .eq("worker_id", workerId)
-    .eq("work_date", today)
     .is("clock_out", null)
+    .order("clock_in", { ascending: false })
+    .limit(1)
     .maybeSingle();
   return data;
 }
