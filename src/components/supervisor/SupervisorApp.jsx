@@ -35,7 +35,7 @@ function Screen({ title, subtitle, onBack, children, action }) {
 
 
 // ── Safety ─────────────────────────────────────────────────────────────────────
-function SafetyScreen({ project, user, onBack }) {
+export function SafetyScreen({ project, user, onBack }) {
   const [hazards, setHazards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -104,7 +104,7 @@ function SafetyScreen({ project, user, onBack }) {
 }
 
 // ── Daily Log ──────────────────────────────────────────────────────────────────
-function DailyLogScreen({ project, user, onBack }) {
+export function DailyLogScreen({ project, user, onBack }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -181,7 +181,7 @@ function DailyLogScreen({ project, user, onBack }) {
 
 
 // ── Variations ─────────────────────────────────────────────────────────────────
-function VariationsScreen({ project, onBack }) {
+export function VariationsScreen({ project, onBack }) {
   const [vars, setVars] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -237,7 +237,7 @@ function PhotosScreen({ project, onBack }) {
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────────
-function ChatScreen({ project, user, onBack }) {
+export function ChatScreen({ project, user, onBack }) {
   const [channel, setChannel] = useState("team");
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");

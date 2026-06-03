@@ -3,6 +3,7 @@ import { getProjects, createProject, getAllTimesheets, approveTimesheet, getProf
 import { supabase } from "../../lib/supabase";
 import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
+import ProjectDashboard from "../shared/ProjectDashboard";
 
 const TABS = [
   { id: "dashboard",  label: "Dashboard",  icon: "⊞" },
@@ -14,12 +15,14 @@ const TABS = [
 ];
 
 // ── Project health card ────────────────────────────────────────────────────────
-function ProjectCard({ project }) {
+function ProjectCard({ project, onOpen }) {
   const h = HEALTH[project.health] || HEALTH.green;
   const pct = project.budget ? Math.round(((project.spent || 0) / project.budget) * 100) : 0;
   const barColor = pct > 90 ? "#ef4444" : pct > 70 ? "#f59e0b" : "#22c55e";
   return (
-    <div style={{ background: "#141414", border: `1px solid ${h.border}`, borderRadius: 14, padding: "18px" }}>
+    <div onClick={onOpen} style={{ background: "#141414", border: `1px solid ${h.border}`, borderRadius: 14, padding: "18px", cursor: onOpen ? "pointer" : "default", transition: "border-color 0.15s" }}
+      onMouseEnter={e => { if (onOpen) e.currentTarget.style.borderColor = "#e07b39"; }}
+      onMouseLeave={e => { if (onOpen) e.currentTarget.style.borderColor = h.border; }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div>
           <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase" }}>{project.job_number}</div>
@@ -55,7 +58,7 @@ function ProjectCard({ project }) {
 }
 
 // ── Dashboard tab ──────────────────────────────────────────────────────────────
-function DashboardTab({ projects, timesheets, onNavigate }) {
+function DashboardTab({ projects, timesheets, onNavigate, onOpenProject }) {
   const active = projects.filter(p => p.status === "active").length;
   const pendingTs = timesheets.filter(t => t.status === "pending").length;
 
@@ -81,14 +84,14 @@ function DashboardTab({ projects, timesheets, onNavigate }) {
       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Project Health</div>
       {projects.length === 0
         ? <EmptyState icon="🏗" title="No projects yet" subtitle="Create your first project to get started" />
-        : <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>{projects.map(p => <div key={p.id} style={{ flex: "1 1 280px", minWidth: 260 }}><ProjectCard project={p} /></div>)}</div>
+        : <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>{projects.map(p => <div key={p.id} style={{ flex: "1 1 280px", minWidth: 260 }}><ProjectCard project={p} onOpen={() => onOpenProject(p)} /></div>)}</div>
       }
     </div>
   );
 }
 
 // ── Projects tab ───────────────────────────────────────────────────────────────
-function ProjectsTab({ projects, onProjectCreated, initialFilter }) {
+function ProjectsTab({ projects, onProjectCreated, initialFilter, onOpenProject }) {
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState(initialFilter || null); // {status} | {health} | null
   useEffect(() => { setFilter(initialFilter || null); }, [initialFilter]);
@@ -192,7 +195,7 @@ function ProjectsTab({ projects, onProjectCreated, initialFilter }) {
         });
         if (projects.length === 0 && !showForm) return <EmptyState icon="🏗" title="No projects yet" subtitle="Click + NEW PROJECT to get started" />;
         if (shown.length === 0) return <EmptyState icon="🔍" title="No projects match" subtitle="Try a different filter" />;
-        return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>{shown.map(p => <ProjectCard key={p.id} project={p} />)}</div>;
+        return <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>{shown.map(p => <ProjectCard key={p.id} project={p} onOpen={() => onOpenProject(p)} />)}</div>;
       })()}
     </div>
   );
@@ -329,6 +332,7 @@ function TeamTab() {
 export default function BuilderApp({ user }) {
   const [tab, setTab] = useState("dashboard");
   const [projectFilter, setProjectFilter] = useState(null);
+  const [openProject, setOpenProject] = useState(null);
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -349,11 +353,16 @@ export default function BuilderApp({ user }) {
     setTimesheets(prev => prev.map(t => t.id === id ? { ...t, status: "approved" } : t));
   };
 
+  // Opening a project takes over the full screen with its Project Dashboard
+  if (openProject) {
+    return <ProjectDashboard project={openProject} user={user} onBack={() => setOpenProject(null)} />;
+  }
+
   const renderTab = () => {
     if (loading) return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3].map(i => <CardSkeleton key={i} />)}</div>;
     switch (tab) {
-      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} />;
-      case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} />;
+      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={setOpenProject} />;
+      case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} onOpenProject={setOpenProject} />;
       case "labour":     return <LabourTab timesheets={timesheets} onApprove={handleApprove} user={user} />;
       case "team":       return <TeamTab />;
       default: return <div style={{ color: "#444", padding: "40px 0", textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>Coming in Stage 3</div>;
@@ -364,7 +373,7 @@ export default function BuilderApp({ user }) {
     <div style={{ display: "flex", height: "100dvh", background: "#0c0c0c", overflow: "hidden" }}>
       <aside style={{ width: 220, background: "#111", borderRight: "1px solid #1e1e1e", display: "flex", flexDirection: "column", flexShrink: 0 }} className="builder-sidebar">
         <div style={{ padding: "20px 20px 14px", borderBottom: "1px solid #1e1e1e" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#f0f0f0" }}><span style={{ color: "#e07b39" }}>SCS</span> BuildHub</div>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#f0f0f0" }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
           <div style={{ fontSize: 11, color: "#444", letterSpacing: 0.5, marginTop: 2 }}>BUILDER CONSOLE</div>
         </div>
         <nav style={{ flex: 1, padding: "10px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
@@ -386,7 +395,7 @@ export default function BuilderApp({ user }) {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header style={{ background: "#111", borderBottom: "1px solid #1e1e1e", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }} className="builder-topbar">
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700 }}><span style={{ color: "#e07b39" }}>SCS</span> BuildHub</div>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
           <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer" }}>Sign out</button>
         </header>
         <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>{renderTab()}</main>

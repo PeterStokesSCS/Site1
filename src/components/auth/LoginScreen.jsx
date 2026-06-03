@@ -56,7 +56,7 @@ export default function LoginScreen() {
           textTransform: "uppercase",
           color: "#f0f0f0",
         }}>
-          <span style={{ color: "#e07b39" }}>SCS</span> BuildHub
+          <span style={{ color: "#e07b39" }}>SITE</span>1
         </div>
         <div style={{ fontSize: 13, color: "#444", letterSpacing: 1, marginTop: 4 }}>
           BUILT FOR SITE

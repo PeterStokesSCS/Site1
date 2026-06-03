@@ -185,7 +185,7 @@ export default function ClientApp({ user }) {
   if (!project) return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c", maxWidth: 430, margin: "0 auto" }}>
       <div style={{ padding: "14px 16px", background: "#111", borderBottom: "1px solid #1e1e1e" }}>
-        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2 }}><span style={{ color: "#e07b39" }}>SCS</span> BuildHub</div>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
       </div>
       <div style={{ flex: 1 }}><EmptyState icon="🏗" title="No project linked yet" subtitle="Your builder will connect your account to your project shortly" /></div>
       <div style={{ padding: 16, borderTop: "1px solid #1e1e1e" }}>
@@ -222,7 +222,7 @@ export default function ClientApp({ user }) {
       <div style={{ background: "#111", borderBottom: "1px solid #1e1e1e", padding: "14px 16px 12px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
-            <span style={{ color: "#e07b39" }}>SCS</span> BuildHub
+            <span style={{ color: "#e07b39" }}>SITE</span>1
           </div>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#e07b39", color: "#0c0c0c", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, fontWeight: 700 }}>{user.avatar}</div>
         </div>

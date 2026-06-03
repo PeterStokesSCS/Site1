@@ -252,7 +252,7 @@ export default function OfficeAdminApp({ user }) {
     <div style={{ display: "flex", height: "100dvh", background: "#0c0c0c", overflow: "hidden" }}>
       <aside style={{ width: 200, background: "#111", borderRight: "1px solid #1e1e1e", display: "flex", flexDirection: "column", flexShrink: 0 }} className="office-sidebar">
         <div style={{ padding: "20px 20px 14px", borderBottom: "1px solid #1e1e1e" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}><span style={{ color: "#e07b39" }}>SCS</span> BuildHub</div>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 2 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
           <div style={{ fontSize: 11, color: "#444", letterSpacing: 0.5, marginTop: 2 }}>OFFICE ADMIN</div>
         </div>
         <nav style={{ flex: 1, padding: "10px 8px" }}>
@@ -271,7 +271,7 @@ export default function OfficeAdminApp({ user }) {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header style={{ background: "#111", borderBottom: "1px solid #1e1e1e", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }} className="office-topbar">
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700 }}><span style={{ color: "#e07b39" }}>SCS</span> BuildHub</div>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
           <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer" }}>Sign out</button>
         </header>
         <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>

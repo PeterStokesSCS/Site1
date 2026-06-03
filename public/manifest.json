@@ -1,7 +1,7 @@
 {
-  "name": "BuildSafe Pro",
-  "short_name": "BuildSafe",
-  "description": "Construction site management for workers and managers",
+  "name": "SITE1",
+  "short_name": "SITE1",
+  "description": "Construction operating system — one site, one platform, one source of truth",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f0f",

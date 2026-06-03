@@ -274,7 +274,7 @@ export default function WorkerApp({ user }) {
   if (!project) return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <div style={{ padding: "14px 16px", background: "#111", borderBottom: "1px solid #1e1e1e" }}>
-        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2 }}><span style={{ color: "#e07b39" }}>SCS</span> BuildHub</div>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
       </div>
       <div style={{ flex: 1 }}>
         <EmptyState icon="🏗" title="No projects assigned" subtitle="Contact your supervisor to be assigned to a project" />

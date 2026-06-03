@@ -35,7 +35,7 @@ export default function LoadingScreen() {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100dvh", background: "#0c0c0c" }}>
       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, color: "#333", letterSpacing: 2, animation: "pulse 1.4s infinite" }}>
-        <span style={{ color: "#e07b3966" }}>SCS</span> BuildHub
+        <span style={{ color: "#e07b3966" }}>SITE</span>1
       </div>
       <style>{`
         @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }

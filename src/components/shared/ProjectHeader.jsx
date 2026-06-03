@@ -21,7 +21,7 @@ export default function ProjectHeader({ project, projects = [], onSwitch, user, 
         {/* Top row — logo + user */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#f0f0f0" }}>
-            <span style={{ color: "#e07b39" }}>SCS</span> BuildHub
+            <span style={{ color: "#e07b39" }}>SITE</span>1
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {rightSlot}

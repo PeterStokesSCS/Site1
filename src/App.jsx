@@ -23,7 +23,7 @@ function Loading() {
         textTransform: "uppercase", color: "#333",
         animation: "pulse 1.5s ease-in-out infinite",
       }}>
-        <span style={{ color: "#e07b3966" }}>SCS</span> BuildHub
+        <span style={{ color: "#e07b3966" }}>SITE</span>1
       </div>
       <style>{`@keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }`}</style>
     </div>
