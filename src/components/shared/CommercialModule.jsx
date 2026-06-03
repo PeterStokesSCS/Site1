@@ -1,7 +1,18 @@
 import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
+import FileUploadButton from "./FileUploadButton";
 import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations, createVariation, updateVariationStatus } from "../../lib/db";
+
+function AttachLink({ url }) {
+  if (!url) return null;
+  const isImg = /\.(jpe?g|png|gif|webp|heic)$/i.test(url);
+  return (
+    <a href={url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>
+      <span>{isImg ? "🖼" : "📎"}</span> View attachment
+    </a>
+  );
+}
 
 // §15 Commercial — all financial/contractual records for a project.
 const CATEGORIES = [
@@ -34,7 +45,7 @@ const money = (n) => (n || n === 0) ? `$${Number(n).toLocaleString()}` : "—";
 function CategoryList({ project, user, category, onBack }) {
   const [items, setItems] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", ref: "", vendor: "", amount: "", status: "draft", description: "" });
+  const [form, setForm] = useState({ title: "", ref: "", vendor: "", amount: "", status: "draft", description: "", file_url: "" });
   const [saving, setSaving] = useState(false);
 
   const load = () => getCommercialItems(project.id).then(({ data }) => setItems(data.filter(i => i.type === category.key)));
@@ -47,9 +58,10 @@ function CategoryList({ project, user, category, onBack }) {
       project_id: project.id, type: category.key, created_by: user.id,
       title: form.title.trim(), ref: form.ref.trim() || null, vendor: form.vendor.trim() || null,
       amount: parseFloat(form.amount) || null, status: form.status, description: form.description.trim() || null,
+      file_url: form.file_url || null,
     });
     if (data) setItems(prev => [data, ...prev]);
-    setForm({ title: "", ref: "", vendor: "", amount: "", status: "draft", description: "" });
+    setForm({ title: "", ref: "", vendor: "", amount: "", status: "draft", description: "", file_url: "" });
     setShowForm(false);
     setSaving(false);
   };
@@ -81,6 +93,11 @@ function CategoryList({ project, user, category, onBack }) {
               ))}
             </div>
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Notes (optional)" rows={2} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <FileUploadButton folder={`commercial/${project.id}/${category.key}`} accept="application/pdf,image/*" label="📎 Attach file" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
+              <FileUploadButton folder={`commercial/${project.id}/${category.key}`} accept="image/*" capture="environment" label="📷 Snap receipt" color="#a855f7" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
+              {form.file_url && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ attached</span>}
+            </div>
             <button onClick={save} disabled={saving || !form.title.trim()} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: form.title.trim() ? category.accent : "#222", color: form.title.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: form.title.trim() ? "pointer" : "not-allowed" }}>{saving ? "SAVING..." : "SAVE"}</button>
           </div>
         )}
@@ -103,6 +120,7 @@ function CategoryList({ project, user, category, onBack }) {
                       <div style={{ marginTop: 4 }}><StatusBadge status={it.status} /></div>
                     </div>
                   </div>
+                  {it.file_url && <div><AttachLink url={it.file_url} /></div>}
                   {/* quick status change */}
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
                     {["draft","pending","revision","approved"].filter(s => s !== it.status).map(s => (
@@ -122,7 +140,7 @@ function CategoryList({ project, user, category, onBack }) {
 function VariationsList({ project, user, onBack }) {
   const [vars, setVars] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", amount: "", description: "" });
+  const [form, setForm] = useState({ title: "", amount: "", description: "", file_url: "" });
   const [saving, setSaving] = useState(false);
 
   const load = () => getVariations(project.id).then(({ data }) => setVars(data));
@@ -135,10 +153,10 @@ function VariationsList({ project, user, onBack }) {
     const { data } = await createVariation({
       project_id: project.id, ref, title: form.title.trim(),
       description: form.description.trim() || null, amount: parseFloat(form.amount) || null,
-      status: "pending", raised_by: user.id,
+      status: "pending", raised_by: user.id, file_url: form.file_url || null,
     });
     if (data) setVars(prev => [data, ...prev]);
-    setForm({ title: "", amount: "", description: "" });
+    setForm({ title: "", amount: "", description: "", file_url: "" });
     setShowForm(false);
     setSaving(false);
   };
@@ -161,7 +179,12 @@ function VariationsList({ project, user, onBack }) {
             <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Variation scope *" style={{ ...inp, marginBottom: 10 }} />
             <input value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Cost impact $" type="number" style={{ ...inp, marginBottom: 10 }} />
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Detailed scope description" rows={3} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>Client digital sign-off &amp; attachments coming in the next pass.</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <FileUploadButton folder={`variations/${project.id}`} accept="application/pdf,image/*" label="📎 Attach" color="#6366f1" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
+              <FileUploadButton folder={`variations/${project.id}`} accept="image/*" capture="environment" label="📷 Photo" color="#a855f7" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
+              {form.file_url && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ attached</span>}
+            </div>
+            <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>Client digital sign-off coming in the next pass.</div>
             <button onClick={save} disabled={saving || !form.title.trim()} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: form.title.trim() ? "#6366f1" : "#222", color: form.title.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: form.title.trim() ? "pointer" : "not-allowed" }}>{saving ? "SAVING..." : "RAISE VARIATION"}</button>
           </div>
         )}
@@ -177,6 +200,7 @@ function VariationsList({ project, user, onBack }) {
                       <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{v.ref}</div>
                       <div style={{ fontSize: 14, color: "#ccc", marginTop: 2 }}>{v.title}</div>
                       {v.description && <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{v.description}</div>}
+                      {v.file_url && <AttachLink url={v.file_url} />}
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: "#e07b39" }}>{money(v.amount)}</div>
