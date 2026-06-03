@@ -4,6 +4,7 @@ import BackHeader from "../shared/BackHeader";
 import AppTile from "../shared/AppTile";
 import OfflineBar from "../shared/OfflineBar";
 import OnSiteIndicator from "../shared/OnSiteIndicator";
+import PhotosScreen from "../shared/PhotosScreen";
 import { Skeleton, EmptyState } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
 import { getProjects, getMyTasksToday, updateTaskStatus, createHazard, getDailyLogs, getDocuments } from "../../lib/db";
@@ -294,6 +295,7 @@ export default function WorkerApp({ user }) {
       case "tasks":    return <TasksScreen {...props} />;
       case "plans":    return <PlansScreen {...props} />;
       case "safety":   return <SafetyScreen {...props} />;
+      case "photos":   return <PhotosScreen {...props} />;
       default: break;
     }
   }

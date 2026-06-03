@@ -5,7 +5,7 @@ import FileUploadButton from "./FileUploadButton";
 import { getPhotos, addPhoto, updatePhotoCaption, setPhotoClientVisible } from "../../lib/db";
 
 // Full-screen photo viewer with editable caption + client-visible toggle
-function Lightbox({ photo, onClose, onCaption, canSetClient }) {
+function Lightbox({ photo, onClose, onCaption, onClientChange, canSetClient }) {
   const [caption, setCaption] = useState(photo.caption || "");
   const [clientVisible, setClientVisible] = useState(!!photo.client_visible);
   const [saved, setSaved] = useState(false);
@@ -20,6 +20,7 @@ function Lightbox({ photo, onClose, onCaption, canSetClient }) {
     const next = !clientVisible;
     setClientVisible(next);
     await setPhotoClientVisible(photo.id, next);
+    onClientChange?.(photo.id, next);
   };
 
   return (
@@ -75,6 +76,12 @@ export default function PhotosScreen({ project, user, onBack }) {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, caption } : p));
   };
 
+  // Keep the gallery list in sync so the toggle state persists when reopened
+  const onClientChange = (id, value) => {
+    setPhotos(prev => prev.map(p => p.id === id ? { ...p, client_visible: value } : p));
+    setLightbox(lb => (lb && lb.id === id ? { ...lb, client_visible: value } : lb));
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <BackHeader title="Photos" subtitle={project.street} onBack={onBack}
@@ -98,6 +105,7 @@ export default function PhotosScreen({ project, user, onBack }) {
             {photos.map(p => (
               <button key={p.id} onClick={() => setLightbox(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#141414", position: "relative" }}>
                 <img src={p.url} alt={p.caption || "site photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                {p.client_visible && <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 4px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>}
                 {p.caption && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.8))", color: "#fff", fontSize: 10, padding: "12px 6px 5px", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.caption}</div>}
               </button>
             ))}
@@ -105,7 +113,7 @@ export default function PhotosScreen({ project, user, onBack }) {
         )}
       </div>
 
-      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} canSetClient={user?.role === "builder" || user?.role === "supervisor"} />}
+      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} onClientChange={onClientChange} canSetClient={user?.role === "builder" || user?.role === "supervisor"} />}
     </div>
   );
 }
