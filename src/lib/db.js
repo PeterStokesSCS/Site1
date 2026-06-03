@@ -235,6 +235,21 @@ export async function createVariation(payload) {
   return { data, error };
 }
 
+export async function getAllVariations() {
+  const { data, error } = await supabase
+    .from("variations")
+    .select("*, project:projects(job_number, street)")
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function updateVariationStatus(id, status, approverId) {
+  const patch = { status };
+  if (approverId) patch.approved_by = approverId;
+  const { error } = await supabase.from("variations").update(patch).eq("id", id);
+  return { error };
+}
+
 // ── Messages ───────────────────────────────────────────────────────────────────
 export async function getMessages(projectId, channel) {
   const query = supabase
@@ -262,6 +277,14 @@ export async function getDocuments(projectId) {
     .from("documents")
     .select("*")
     .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function getAllDocuments() {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("*, project:projects(job_number, street)")
     .order("created_at", { ascending: false });
   return { data: data || [], error };
 }
