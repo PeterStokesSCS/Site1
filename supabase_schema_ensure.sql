@@ -66,6 +66,9 @@ alter table project_photos add column if not exists taken_at timestamptz default
 alter table project_photos add column if not exists file_name text;
 alter table project_photos add column if not exists file_size_kb int;
 
+-- ── MESSAGES — inline photo ─────────────────────────────────────
+alter table messages add column if not exists image_url text;
+
 -- ── DOCUMENTS — version flags ───────────────────────────────────
 alter table documents add column if not exists version text;
 alter table documents add column if not exists superseded boolean default false;

@@ -4,11 +4,12 @@ import { EmptyState } from "../shared/LoadingScreen";
 import {
   getHazardsByProject, createHazard, resolveHazard,
   getDailyLogs, createDailyLog, getAttendanceForDay,
-  getVariations, getMessages, sendMessage,
+  getVariations, getMessages, sendMessage, addPhoto,
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
 import PhotoAttach from "../shared/PhotoAttach";
+import PhotoCaptureButton from "../shared/PhotoCaptureButton";
 
 // Local YYYY-MM-DD (not UTC) so "today" matches the supervisor's actual day
 function localDateStr(d = new Date()) {
@@ -283,6 +284,7 @@ export function ChatScreen({ project, user, onBack }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState(null); // image url shown full-screen
 
   useEffect(() => {
     getMessages(project.id).then(({ data }) => { setMessages(data); setLoading(false); });
@@ -294,6 +296,25 @@ export function ChatScreen({ project, user, onBack }) {
     if (data) setMessages(prev => [...prev, data]);
     setDraft("");
     post("/messages", data).catch(() => {});
+  };
+
+  // Send a photo as a message; also file it in the project gallery linked to the message.
+  const sendPhoto = async (meta) => {
+    const caption = draft.trim() || null;
+    const { data } = await sendMessage({ project_id: project.id, sender_id: user.id, channel, content: caption, image_url: meta.url });
+    if (!data) return;
+    setMessages(prev => [...prev, data]);
+    setDraft("");
+    post("/messages", data).catch(() => {});
+    addPhoto({
+      project_id: project.id, url: meta.url, taken_by: user.id, caption,
+      category: "general", linked_record_type: "message", linked_record_id: data.id,
+      client_visible: channel === "client",
+      file_name: meta.file_name, file_size_kb: meta.file_size_kb,
+      gps_lat: meta.gps_lat, gps_lng: meta.gps_lng, gps_accuracy_m: meta.gps_accuracy_m,
+      gps_on_site: meta.gps_on_site, gps_distance_from_site_m: meta.gps_distance_from_site_m,
+      taken_at: meta.taken_at,
+    }).catch(() => {});
   };
 
   const visible = messages.filter(m => m.channel === channel);
@@ -314,18 +335,34 @@ export function ChatScreen({ project, user, onBack }) {
             return (
               <div key={msg.id} style={{ display: "flex", flexDirection: "column", alignItems: out ? "flex-end" : "flex-start" }}>
                 <div style={{ fontSize: 10, color: "#444", marginBottom: 3 }}>{msg.sender?.full_name || "Unknown"}</div>
-                <div style={{ maxWidth: "80%", background: out ? "#2a1800" : "#1a1a1a", border: `1px solid ${out ? "#3a2200" : "#222"}`, borderRadius: out ? "12px 12px 2px 12px" : "12px 12px 12px 2px", padding: "10px 14px", fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
-                  {msg.content}
+                <div style={{ maxWidth: "80%", background: out ? "#2a1800" : "#1a1a1a", border: `1px solid ${out ? "#3a2200" : "#222"}`, borderRadius: out ? "12px 12px 2px 12px" : "12px 12px 12px 2px", padding: msg.image_url ? 4 : "10px 14px", fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
+                  {msg.image_url && (
+                    <img src={msg.image_url} alt={msg.content || "photo"} onClick={() => setView(msg.image_url)}
+                      style={{ display: "block", maxWidth: 220, maxHeight: 260, borderRadius: 9, cursor: "pointer", objectFit: "cover" }} />
+                  )}
+                  {msg.content && <div style={{ padding: msg.image_url ? "7px 10px 4px" : 0 }}>{msg.content}</div>}
                 </div>
               </div>
             );
           })
         }
       </div>
-      <div style={{ padding: "10px 16px 24px", borderTop: "1px solid #1e1e1e", display: "flex", gap: 8 }}>
+      <div style={{ padding: "10px 16px 24px", borderTop: "1px solid #1e1e1e", display: "flex", gap: 8, alignItems: "center" }}>
+        <PhotoCaptureButton folder={`chat/${project.id}`} projectLat={project.lat} projectLng={project.lng} label="📷" color="#a855f7" onPhoto={sendPhoto} />
         <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={`Message ${channel}...`} style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif" }} />
         <button onClick={send} disabled={!draft.trim()} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: draft.trim() ? "#22c55e" : "#1a1a1a", color: draft.trim() ? "#fff" : "#444", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: draft.trim() ? "pointer" : "default" }}>SEND</button>
       </div>
+
+      {view && (
+        <div onClick={() => setView(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 400, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: 14 }}>
+            <button onClick={() => setView(null)} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>✕</button>
+          </div>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px 24px" }}>
+            <img src={view} alt="photo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
