@@ -125,8 +125,9 @@ Legend: ✅ done · 🟡 partial · ⬜ not started
 | 11 | Daily Log | 🟡 | Basic submit + history ✅. Missing: choose-date, smart Yes/No (H13), attendance validation (H14), filters/search (H15), weather API (M3), editing w/ audit trail. |
 | 12 | Issues | 🟡 | 3-tier + priority + escalate + comments + safety auto-link ✅. Missing: expanded categories (9), attachments, issue→task generation, Escalated status. |
 | 13–14 | Safety integration | 🟡 | Issue→hazard auto-create ✅. Missing: expanded multi-select hazard categories, resolution/verification workflow + archive. |
-| 15 | Commercial module | ⬜ | Rename Variations→Commercial; 7 categories; contract statuses. |
-| 16 | Variations legal record | 🟡 | Approve/reject persist (Office). Missing: scope/photos/attachments, client digital signature, audit trail (C4). |
+| 15 | Commercial module | ✅ | Per-project Commercial: Contracts, Purchase Orders, Quotes, Invoices, Receipts (unified commercial_items), Variations, Cost Tracking rollup. Status flow Draft/Pending/Revision/Approved. File attachments (PDF/photo/receipt) to Supabase Storage. |
+| — | **File uploads + AI extraction** | ✅ | Attach PDFs/receipts/photos to commercial records & variations (Supabase Storage `attachments` bucket). "✨ Auto-fill from document" reads receipts/invoices via Claude (extract-receipt Edge Function) and pre-fills vendor/amount/date/ref for human review. |
+| 16 | Variations legal record | 🟡 | Approve/reject persist; raise with attachment ✅. Missing: client digital signature + full audit trail (C4). |
 | 17 | Team module | 🟡 | Builder Team tab assigns roles ✅. Missing: Employees/Subs/Suppliers split (H3), member detail + history pages (H4). |
 | 18 | Project Health Score | 🟡 | Stored on project + shown Green/Amber/Red. Not yet auto-calculated from inputs. |
 | 19 | Blockers Dashboard | ⬜ | Not started. |
