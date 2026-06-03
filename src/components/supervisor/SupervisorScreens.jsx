@@ -10,6 +10,7 @@ import { post } from "../../lib/webhook";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
 import PhotoAttach from "../shared/PhotoAttach";
 import PhotoCaptureButton from "../shared/PhotoCaptureButton";
+import PhotoQueueBanner from "../shared/PhotoQueueBanner";
 
 // Local YYYY-MM-DD (not UTC) so "today" matches the supervisor's actual day
 function localDateStr(d = new Date()) {
@@ -286,8 +287,12 @@ export function ChatScreen({ project, user, onBack }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState(null); // image url shown full-screen
 
+  const reload = () => getMessages(project.id).then(({ data }) => setMessages(data));
   useEffect(() => {
     getMessages(project.id).then(({ data }) => { setMessages(data); setLoading(false); });
+    const h = () => reload();
+    window.addEventListener("photoqueue:flushed", h);
+    return () => window.removeEventListener("photoqueue:flushed", h);
   }, [project.id]);
 
   const send = async () => {
@@ -347,8 +352,10 @@ export function ChatScreen({ project, user, onBack }) {
           })
         }
       </div>
+      <div style={{ padding: "0 16px" }}><PhotoQueueBanner /></div>
       <div style={{ padding: "10px 16px 24px", borderTop: "1px solid #1e1e1e", display: "flex", gap: 8, alignItems: "center" }}>
-        <PhotoCaptureButton folder={`chat/${project.id}`} projectLat={project.lat} projectLng={project.lng} label="📷" color="#a855f7" onPhoto={sendPhoto} />
+        <PhotoCaptureButton folder={`chat/${project.id}`} projectLat={project.lat} projectLng={project.lng} label="📷" color="#a855f7" onPhoto={sendPhoto}
+          queueAction={{ type: "chatPhoto", payload: { message: { project_id: project.id, sender_id: user.id, channel, content: draft.trim() || null }, photo: { project_id: project.id, taken_by: user.id, category: "general", client_visible: channel === "client", linked_record_type: "message" } } }} />
         <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={`Message ${channel}...`} style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif" }} />
         <button onClick={send} disabled={!draft.trim()} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: draft.trim() ? "#22c55e" : "#1a1a1a", color: draft.trim() ? "#fff" : "#444", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: draft.trim() ? "pointer" : "default" }}>SEND</button>
       </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import PhotoCaptureButton from "./PhotoCaptureButton";
+import PhotoQueueBanner from "./PhotoQueueBanner";
 import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES, categoryMeta } from "../../lib/photoUtils";
 import { getPhotos, addPhoto, updatePhotoCaption, updatePhotoCategory, setPhotoClientVisible, deletePhoto } from "../../lib/db";
@@ -112,7 +113,14 @@ export default function PhotosScreen({ project, user, onBack }) {
   const [filter, setFilter] = useState("all");
   const [err, setErr] = useState(null);
 
-  useEffect(() => { getPhotos(project.id).then(({ data }) => setPhotos(data)); }, [project.id]);
+  const reload = () => getPhotos(project.id).then(({ data }) => setPhotos(data));
+  useEffect(() => { reload(); }, [project.id]);
+  // Refresh once the offline outbox finishes uploading queued photos.
+  useEffect(() => {
+    const h = () => reload();
+    window.addEventListener("photoqueue:flushed", h);
+    return () => window.removeEventListener("photoqueue:flushed", h);
+  }, [project.id]);
 
   // New photos are tagged with the active filter (or General when viewing all).
   const captureCategory = filter === "all" ? "general" : filter;
@@ -175,8 +183,8 @@ export default function PhotosScreen({ project, user, onBack }) {
       <BackHeader title="Photos" subtitle={project.street} onBack={onBack}
         rightSlot={
           <div style={{ display: "flex", gap: 8 }}>
-            <PhotoCaptureButton folder={`photos/${project.id}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take" color="#a855f7" onPhoto={onPhoto} />
-            <PhotoCaptureButton folder={`photos/${project.id}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} />
+            <PhotoCaptureButton folder={`photos/${project.id}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take" color="#a855f7" onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, category: captureCategory } }} />
+            <PhotoCaptureButton folder={`photos/${project.id}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, category: captureCategory } }} />
           </div>
         }
       />
@@ -207,6 +215,7 @@ export default function PhotosScreen({ project, user, onBack }) {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "0 12px 12px" }}>
+        <div style={{ paddingTop: 10 }}><PhotoQueueBanner /></div>
         {err && <div style={{ background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "10px 14px", color: "#ef4444", fontSize: 13, marginBottom: 10 }}>⚠ {err}</div>}
         {photos === null ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>

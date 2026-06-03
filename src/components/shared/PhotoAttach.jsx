@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import PhotoCaptureButton from "./PhotoCaptureButton";
+import PhotoQueueBanner from "./PhotoQueueBanner";
 import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES } from "../../lib/photoUtils";
 import { getPhotosForRecord, addPhoto, setPhotoClientVisible, deletePhoto } from "../../lib/db";
@@ -18,9 +19,13 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
   const [confirmDel, setConfirmDel] = useState(false);
   const canSetClient = user?.role === "builder" || user?.role === "supervisor";
 
+  const reload = () => getPhotosForRecord(recordType, recordId).then(({ data }) => setPhotos(data));
   useEffect(() => {
     if (!recordId) return;
-    getPhotosForRecord(recordType, recordId).then(({ data }) => setPhotos(data));
+    reload();
+    const h = () => reload();
+    window.addEventListener("photoqueue:flushed", h);
+    return () => window.removeEventListener("photoqueue:flushed", h);
   }, [recordType, recordId]);
 
   const onPhoto = async (meta) => {
@@ -97,9 +102,10 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
         </button>
       )}
       <div style={{ display: "flex", gap: 8 }}>
-        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take photo" color={accent} onPhoto={onPhoto} />
-        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} />
+        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take photo" color={accent} onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, caption: caption.trim() || null, client_visible: clientVisible, linked_record_type: recordType, linked_record_id: recordId, category } }} />
+        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, caption: caption.trim() || null, client_visible: clientVisible, linked_record_type: recordType, linked_record_id: recordId, category } }} />
       </div>
+      <div style={{ marginTop: 10 }}><PhotoQueueBanner /></div>
 
       {/* Lightbox */}
       {view && (
