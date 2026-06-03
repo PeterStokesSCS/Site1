@@ -4,16 +4,19 @@ import BackHeader from "../shared/BackHeader";
 import AppTile from "../shared/AppTile";
 import { Skeleton, EmptyState } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
+import TasksFeature  from "./TasksFeature";
+import IssuesFeature from "./IssuesFeature";
+import OnSiteFeature from "./OnSiteFeature";
 import {
-  getProjects, getTasksByProject, updateTaskStatus, createTask,
+  getProjects, getTasksByProject,
   getHazardsByProject, createHazard, resolveHazard,
-  getIssues, createIssue,
+  getIssues,
   getDailyLogs, createDailyLog,
   getVariations, getMessages, sendMessage,
-  getProfiles,
 } from "../../lib/db";
+import { supabase } from "../../lib/supabase";
 import { post } from "../../lib/webhook";
-import { HAZARD_CATEGORIES, ISSUE_CATEGORIES } from "../../data/mockData";
+import { HAZARD_CATEGORIES } from "../../data/mockData";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const PRIORITY_COLOR = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
@@ -28,89 +31,7 @@ function Screen({ title, subtitle, onBack, children, action }) {
   );
 }
 
-function FilterChip({ label, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${active ? "#e07b39" : "#2a2a2a"}`, background: active ? "#2a1800" : "transparent", color: active ? "#e07b39" : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, textTransform: "capitalize", cursor: "pointer" }}>
-      {label}
-    </button>
-  );
-}
 
-// ── Tasks ──────────────────────────────────────────────────────────────────────
-function TasksScreen({ project, user, onBack }) {
-  const [tasks, setTasks] = useState([]);
-  const [workers, setWorkers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("open");
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", assignee_id: "", due_date: TODAY, priority: "medium" });
-
-  useEffect(() => {
-    Promise.all([getTasksByProject(project.id), getProfiles()]).then(([t, w]) => {
-      setTasks(t.data); setWorkers(w.data); setLoading(false);
-    });
-  }, [project.id]);
-
-  const toggle = async (task) => {
-    const s = task.status === "completed" ? "todo" : "completed";
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: s } : t));
-    await updateTaskStatus(task.id, s);
-  };
-
-  const saveTask = async () => {
-    if (!form.title) return;
-    const { data } = await createTask({ ...form, project_id: project.id, created_by: user.id });
-    if (data) { setTasks(prev => [data, ...prev]); setShowForm(false); setForm({ title: "", assignee_id: "", due_date: TODAY, priority: "medium" }); }
-    post("/tasks", data).catch(() => {});
-  };
-
-  const filtered = tasks.filter(t => filter === "all" ? true : filter === "open" ? t.status !== "completed" : t.status === "completed");
-
-  return (
-    <Screen title="Tasks" subtitle={project.street} onBack={onBack}
-      action={<button onClick={() => setShowForm(s => !s)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#f59e0b", color: "#0c0c0c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>+ ADD</button>}
-    >
-      {showForm && (
-        <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 14, marginBottom: 14 }}>
-          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Task description" style={inp} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, margin: "10px 0" }}>
-            <select value={form.assignee_id} onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))} style={inp}>
-              <option value="">Unassigned</option>
-              {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
-            </select>
-            <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={inp} />
-          </div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            {["high","medium","low"].map(p => (
-              <button key={p} onClick={() => setForm(f => ({ ...f, priority: p }))} style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: `1px solid ${form.priority === p ? PRIORITY_COLOR[p] : "#2a2a2a"}`, background: form.priority === p ? PRIORITY_BG[p] : "transparent", color: form.priority === p ? PRIORITY_COLOR[p] : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer", textTransform: "capitalize" }}>{p}</button>
-            ))}
-          </div>
-          <button onClick={saveTask} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "#f59e0b", color: "#0c0c0c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>CREATE TASK</button>
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        {["open","all","done"].map(f => <FilterChip key={f} label={f} active={filter === f} onClick={() => setFilter(f)} />)}
-      </div>
-      {loading ? [1,2,3].map(i => <div key={i} style={{ height: 68, background: "#141414", borderRadius: 10, marginBottom: 8 }} />) :
-        filtered.length === 0
-          ? <EmptyState icon="✅" title="No tasks" subtitle={filter === "open" ? "All tasks are complete" : "No tasks yet"} />
-          : filtered.map(task => (
-            <button key={task.id} onClick={() => toggle(task)} style={{ width: "100%", textAlign: "left", background: "#141414", border: "1px solid #1e1e1e", borderLeft: `4px solid ${PRIORITY_COLOR[task.priority]}`, borderRadius: 10, padding: "12px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: `2px solid ${task.status === "completed" ? "#22c55e" : "#333"}`, background: task.status === "completed" ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {task.status === "completed" && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, color: task.status === "completed" ? "#555" : "#ccc", textDecoration: task.status === "completed" ? "line-through" : "none" }}>{task.title}</div>
-                <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
-                  {task.assignee?.full_name || "Unassigned"} · Due {new Date(task.due_date).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
-                </div>
-              </div>
-            </button>
-          ))
-      }
-    </Screen>
-  );
-}
 
 // ── Safety ─────────────────────────────────────────────────────────────────────
 function SafetyScreen({ project, user, onBack }) {
@@ -257,51 +178,6 @@ function DailyLogScreen({ project, user, onBack }) {
   );
 }
 
-// ── Issues ─────────────────────────────────────────────────────────────────────
-function IssuesScreen({ project, user, onBack }) {
-  const [issues, setIssues] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", category: "Other", priority: "medium", description: "" });
-
-  useEffect(() => {
-    getIssues(project.id).then(({ data }) => { setIssues(data); setLoading(false); });
-  }, [project.id]);
-
-  const submit = async () => {
-    if (!form.title) return;
-    const { data } = await createIssue({ ...form, project_id: project.id, raised_by: user.id, status: "open" });
-    if (data) { setIssues(prev => [data, ...prev]); setShowForm(false); setForm({ title: "", category: "Other", priority: "medium", description: "" }); }
-  };
-
-  return (
-    <Screen title="Issues" subtitle={project.street} onBack={onBack}
-      action={<button onClick={() => setShowForm(s => !s)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#f97316", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>+ ADD</button>}
-    >
-      {showForm && (
-        <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 14, marginBottom: 14 }}>
-          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Issue title" style={{ ...inp, marginBottom: 10 }} />
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-            {ISSUE_CATEGORIES.map(c => (<button key={c} onClick={() => setForm(f => ({ ...f, category: c }))} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${form.category === c ? "#f97316" : "#2a2a2a"}`, background: form.category === c ? "#251200" : "transparent", color: form.category === c ? "#f97316" : "#666", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif" }}>{c}</button>))}
-          </div>
-          <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Details..." rows={2} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
-          <button onClick={submit} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "#f97316", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>ADD ISSUE</button>
-        </div>
-      )}
-      {loading ? [1,2,3].map(i => <div key={i} style={{ height: 70, background: "#141414", borderRadius: 10, marginBottom: 8 }} />) :
-        issues.length === 0
-          ? <EmptyState icon="⚡" title="No open issues" subtitle="Use the Add button to log a blocker or issue" />
-          : issues.map(issue => (
-            <div key={issue.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderLeft: `4px solid ${PRIORITY_COLOR[issue.priority]}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
-              <div style={{ fontSize: 14, color: "#ccc" }}>{issue.title}</div>
-              <div style={{ fontSize: 11, color: "#555", marginTop: 3 }}>{issue.category} · {new Date(issue.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</div>
-              {issue.description && <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>{issue.description}</div>}
-            </div>
-          ))
-      }
-    </Screen>
-  );
-}
 
 // ── Variations ─────────────────────────────────────────────────────────────────
 function VariationsScreen({ project, onBack }) {
@@ -413,19 +289,19 @@ function ChatScreen({ project, user, onBack }) {
 }
 
 // ── Supervisor Home ────────────────────────────────────────────────────────────
-function Stat({ value, label, color = "#e07b39" }) {
+function Stat({ value, label, color = "#e07b39", onClick }) {
   return (
-    <div style={{ flex: 1, textAlign: "center", background: "#1a1a1a", borderRadius: 10, padding: "10px 6px" }}>
+    <button onClick={onClick} disabled={!onClick} style={{ flex: 1, textAlign: "center", background: "#1a1a1a", border: "none", borderRadius: 10, padding: "10px 6px", cursor: onClick ? "pointer" : "default", WebkitTapHighlightColor: "transparent" }}>
       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
       <div style={{ fontSize: 10, color: "#555", marginTop: 3, textTransform: "uppercase", letterSpacing: 0.3, fontFamily: "Barlow Condensed, sans-serif" }}>{label}</div>
-    </div>
+    </button>
   );
 }
 
 export default function SupervisorApp({ user }) {
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState(null);
-  const [stats, setStats] = useState({ tasks: 0, issues: 0, hazards: 0 });
+  const [stats, setStats] = useState({ onSite: 0, tasks: 0, issues: 0, hazards: 0 });
   const [screen, setScreen] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -443,8 +319,11 @@ export default function SupervisorApp({ user }) {
       getTasksByProject(projectId),
       getIssues(projectId),
       getHazardsByProject(projectId),
-    ]).then(([t, i, h]) => {
+      supabase.from("timesheets").select("id").eq("project_id", projectId).eq("work_date", TODAY).is("clock_out", null),
+      supabase.from("site_visits").select("id").eq("project_id", projectId).gte("sign_in", TODAY + "T00:00:00Z").is("sign_out", null),
+    ]).then(([t, i, h, ts, sv]) => {
       setStats({
+        onSite:  (ts.data?.length || 0) + (sv.data?.length || 0),
         tasks:   t.data.filter(x => x.status !== "completed").length,
         issues:  i.data.filter(x => x.status === "open").length,
         hazards: h.data.filter(x => x.status === "open").length,
@@ -466,9 +345,10 @@ export default function SupervisorApp({ user }) {
   if (screen) {
     const props = { project, user, onBack: () => setScreen(null) };
     switch (screen) {
-      case "tasks":      return <TasksScreen {...props} />;
+      case "onSite":     return <OnSiteFeature {...props} />;
+      case "tasks":      return <TasksFeature {...props} />;
+      case "issues":     return <IssuesFeature {...props} />;
       case "safety":     return <SafetyScreen {...props} />;
-      case "issues":     return <IssuesScreen {...props} />;
       case "dailyLog":   return <DailyLogScreen {...props} />;
       case "variations": return <VariationsScreen {...props} />;
       case "photos":     return <PhotosScreen {...props} />;
@@ -478,12 +358,13 @@ export default function SupervisorApp({ user }) {
   }
 
   const TILE_GRID = [
-    { key: "plans",      ...TILES.plans,      badge: 0 },
+    { key: "onSite",     icon: "👷", label: "On Site",    accent: "#0ea5e9", bg: "#061520", badge: stats.onSite },
     { key: "tasks",      ...TILES.tasks,      badge: stats.tasks },
-    { key: "photos",     ...TILES.photos,     badge: 0 },
+    { key: "plans",      ...TILES.plans,      badge: 0 },
     { key: "dailyLog",   ...TILES.dailyLog,   badge: 0 },
     { key: "safety",     ...TILES.safety,     badge: stats.hazards },
     { key: "issues",     ...TILES.issues,     badge: stats.issues },
+    { key: "photos",     ...TILES.photos,     badge: 0 },
     { key: "variations", ...TILES.variations, badge: 0 },
     { key: "chat",       ...TILES.chat,       badge: 0 },
   ];
@@ -492,9 +373,10 @@ export default function SupervisorApp({ user }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c", maxWidth: 430, margin: "0 auto" }}>
       <ProjectHeader project={project} user={user} onSwitch={projects.length > 1 ? setProjectId : null} />
       <div style={{ display: "flex", gap: 8, padding: "12px 16px 0", flexShrink: 0 }}>
-        <Stat value={stats.tasks}   label="Tasks Due"  color="#f59e0b" />
-        <Stat value={stats.issues}  label="Issues"     color="#f97316" />
-        <Stat value={stats.hazards} label="Hazards"    color="#ef4444" />
+        <Stat value={stats.onSite}  label="On Site"   color="#0ea5e9" onClick={() => setScreen("onSite")} />
+        <Stat value={stats.tasks}   label="Tasks Due" color="#f59e0b" onClick={() => setScreen("tasks")} />
+        <Stat value={stats.issues}  label="Issues"    color="#f97316" onClick={() => setScreen("issues")} />
+        <Stat value={stats.hazards} label="Hazards"   color="#ef4444" onClick={() => setScreen("safety")} />
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
