@@ -6,10 +6,10 @@ import { HEALTH } from "../../lib/theme";
 import TasksFeature from "../supervisor/TasksFeature";
 import IssuesFeature from "../supervisor/IssuesFeature";
 import OnSiteFeature from "../supervisor/OnSiteFeature";
-import { SafetyScreen, DailyLogScreen, VariationsScreen, ChatScreen } from "../supervisor/SupervisorApp";
+import { SafetyScreen, DailyLogScreen, VariationsScreen, ChatScreen } from "../supervisor/SupervisorScreens";
 
 // §7 Project Dashboard — the project becomes its own workspace.
-// Reuses the existing supervisor screens, scoped to the chosen project.
+// Shared by Builder (drill-in from project list) and Supervisor (home screen).
 const TILES = [
   { key: "overview",      icon: "📊", label: "Overview",      accent: "#64748b", bg: "#0c1420" },
   { key: "plans",         icon: "📐", label: "Plans",         accent: "#3b82f6", bg: "#0c1a33" },
@@ -33,7 +33,27 @@ function Soon({ title, project, onBack }) {
   );
 }
 
-export default function ProjectDashboard({ project, user, onBack }) {
+// Tappable metric strip (Supervisor). Maps each stat to a dashboard tile.
+function StatRow({ stats, onNav }) {
+  const items = [
+    { key: "attendance", label: "On Site",   value: stats.onSite,  color: "#0ea5e9" },
+    { key: "tasks",      label: "Tasks Due", value: stats.tasks,   color: "#f59e0b" },
+    { key: "issues",     label: "Issues",    value: stats.issues,  color: "#f97316" },
+    { key: "safety",     label: "Hazards",   value: stats.hazards, color: "#ef4444" },
+  ];
+  return (
+    <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      {items.map(s => (
+        <button key={s.key} onClick={() => onNav(s.key)} style={{ flex: 1, textAlign: "center", background: "#1a1a1a", border: "none", borderRadius: 10, padding: "10px 6px", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+          <div style={{ fontSize: 10, color: "#555", marginTop: 3, textTransform: "uppercase", letterSpacing: 0.3, fontFamily: "Barlow Condensed, sans-serif" }}>{s.label}</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth }) {
   const [screen, setScreen] = useState(null);
   const health = HEALTH[project.health] || HEALTH.green;
 
@@ -56,32 +76,36 @@ export default function ProjectDashboard({ project, user, onBack }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
-      <BackHeader
-        title={project.street}
-        subtitle={`JOB ${project.job_number || "—"} · ${project.phase || "—"}`}
-        onBack={onBack}
-        rightSlot={
-          <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: health.color, background: health.bg, border: `1px solid ${health.border}`, padding: "4px 10px", borderRadius: 12, whiteSpace: "nowrap" }}>
-            ● {health.label}
-          </span>
-        }
-      />
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c", maxWidth, margin: maxWidth ? "0 auto" : undefined }}>
+      {header || (
+        <BackHeader
+          title={project.street}
+          subtitle={`JOB ${project.job_number || "—"} · ${project.phase || "—"}`}
+          onBack={onBack}
+          rightSlot={
+            <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: health.color, background: health.bg, border: `1px solid ${health.border}`, padding: "4px 10px", borderRadius: 12, whiteSpace: "nowrap" }}>
+              ● {health.label}
+            </span>
+          }
+        />
+      )}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {/* Progress strip */}
-        <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#666", marginBottom: 6 }}>
-            <span>{project.client_name || "—"}</span>
-            <span>{project.progress || 0}% complete</span>
+        {stats ? (
+          <StatRow stats={stats} onNav={setScreen} />
+        ) : (
+          <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#666", marginBottom: 6 }}>
+              <span>{project.client_name || "—"}</span>
+              <span>{project.progress || 0}% complete</span>
+            </div>
+            <div style={{ height: 6, background: "#222", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${project.progress || 0}%`, background: "#e07b39", borderRadius: 3 }} />
+            </div>
           </div>
-          <div style={{ height: 6, background: "#222", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${project.progress || 0}%`, background: "#e07b39", borderRadius: 3 }} />
-          </div>
-        </div>
+        )}
 
-        {/* Workspace tiles */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-          {TILES.map(t => <AppTile key={t.key} {...t} onClick={() => setScreen(t.key)} />)}
+          {TILES.map(t => <AppTile key={t.key} {...t} badge={badges[t.key] || 0} onClick={() => setScreen(t.key)} />)}
         </div>
       </div>
     </div>
