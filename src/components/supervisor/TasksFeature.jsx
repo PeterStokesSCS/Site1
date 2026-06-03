@@ -134,7 +134,7 @@ function TaskDetail({ task: initial, user, onBack }) {
           {[
             { l: "Priority", v: <PriorityBadge priority={task.priority} /> },
             { l: "Assigned To", v: <span style={{ color: "#ccc", fontSize: 14 }}>{task.assignee?.full_name || "Unassigned"}<button onClick={() => setReassigning(r => !r)} style={{ marginLeft: 10, background: "none", border: "none", color: "#e07b39", fontSize: 12, cursor: "pointer" }}>Change</button></span> },
-            { l: "Due Date", v: <span style={{ color: isOverdue(task) ? "#ef4444" : "#ccc", fontSize: 14 }}>{task.due_date ? new Date(task.due_date).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "long" }) : "No date set"}</span> },
+            { l: "Due Date", v: <span style={{ color: isOverdue(task) ? "#ef4444" : "#ccc", fontSize: 14 }}>{task.due_date ? new Date(task.due_date).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "long" }) : "No date set"}{task.due_time ? ` · ${task.due_time.slice(0,5)}` : ""}</span> },
           ].map(row => (
             <div key={row.l} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
               <span style={{ fontSize: 12, color: "#555", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", letterSpacing: 0.5 }}>{row.l}</span>
@@ -190,7 +190,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
   const [filter, setFilter] = useState("all");
   const [selectedTask, setSelectedTask] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", assignee_id: "", due_date: TODAY, priority: "medium", description: "" });
+  const [form, setForm] = useState({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
   const [allTasks, setAllTasks] = useState(tasks);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -217,6 +217,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
       created_by: user.id,
       assignee_id: form.assignee_id || null,
       due_date: form.due_date || null,
+      due_time: form.due_time || null,
       priority: form.priority,
       description: form.description?.trim() || null,
     };
@@ -225,7 +226,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
     if (error) { setSaveError(error.message); return; }
     setAllTasks(prev => [data, ...prev]);
     setShowForm(false);
-    setForm({ title: "", assignee_id: "", due_date: TODAY, priority: "medium", description: "" });
+    setForm({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
   };
 
   const filtered = filter === "all" ? allTasks.filter(t => t.status !== "completed")
@@ -247,12 +248,22 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
         {showForm && (
           <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Task title" style={inp} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "10px 0" }}>
+            <div style={{ margin: "10px 0" }}>
+              <div style={lbl}>Assignee</div>
               <select value={form.assignee_id} onChange={e => setForm(f => ({ ...f, assignee_id: e.target.value }))} style={inp}>
                 <option value="">Unassigned</option>
                 {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
               </select>
-              <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={inp} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+              <div>
+                <div style={lbl}>Due Date</div>
+                <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={inp} />
+              </div>
+              <div>
+                <div style={lbl}>Due Time</div>
+                <input type="time" value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} style={inp} />
+              </div>
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
               {Object.entries(PRIORITY).map(([k, v]) => (
@@ -390,3 +401,4 @@ function OthersTasksList({ tasks, workers, user, onBack }) {
 }
 
 const inp = { width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box" };
+const lbl = { fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 5 };

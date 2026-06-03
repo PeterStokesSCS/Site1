@@ -3,6 +3,7 @@ import ProjectHeader from "../shared/ProjectHeader";
 import BackHeader from "../shared/BackHeader";
 import AppTile from "../shared/AppTile";
 import OfflineBar from "../shared/OfflineBar";
+import OnSiteIndicator from "../shared/OnSiteIndicator";
 import { Skeleton, EmptyState } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
 import { getProjects, getMyTasksToday, updateTaskStatus, createHazard, getDailyLogs, getDocuments } from "../../lib/db";
@@ -250,6 +251,7 @@ export default function WorkerApp({ user }) {
   const [screen, setScreen] = useState(null);
   const [loading, setLoading] = useState(true);
   const [taskCount, setTaskCount] = useState(0);
+  const [, setClockKey] = useState(0); // bumped on clock in/out to keep the indicator fresh
 
   useEffect(() => {
     getProjects().then(({ data }) => {
@@ -308,7 +310,7 @@ export default function WorkerApp({ user }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c", maxWidth: 430, margin: "0 auto" }}>
       <OfflineBar />
-      <ProjectHeader project={project} projects={projects} user={user} onSwitch={projects.length > 1 ? setProjectId : null} />
+      <ProjectHeader project={project} projects={projects} user={user} onSwitch={projects.length > 1 ? setProjectId : null} rightSlot={<OnSiteIndicator user={user} project={project} onChange={() => setClockKey(k => k + 1)} />} />
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 24px" }}>
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>
           {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}

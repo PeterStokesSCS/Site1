@@ -176,6 +176,7 @@ export default function OnSiteFeature({ project, user, onBack }) {
   const [showAdd, setShowAdd] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [signOutTarget, setSignOutTarget] = useState(null); // { kind: 'worker'|'visit', id, name, signIn }
+  const [tab, setTab] = useState("today"); // today | history
   const [tick, setTick] = useState(0);
 
   const confirmSignOut = async (target, outIso) => {
@@ -218,11 +219,20 @@ export default function OnSiteFeature({ project, user, onBack }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
-      <BackHeader title="On Site" subtitle={project.street} onBack={onBack} rightSlot={
-        <button onClick={() => setShowAdd(s => !s)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: showAdd ? "#333" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>
-          {showAdd ? "CANCEL" : "+ ADD"}
-        </button>
+      <BackHeader title="Attendance" subtitle={project.street} onBack={onBack} rightSlot={
+        tab === "today" ? (
+          <button onClick={() => setShowAdd(s => !s)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: showAdd ? "#333" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>
+            {showAdd ? "CANCEL" : "+ ADD"}
+          </button>
+        ) : null
       } />
+      <div style={{ display: "flex", borderBottom: "1px solid #1e1e1e", flexShrink: 0 }}>
+        {[["today","Today"],["history","History"]].map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ flex: 1, padding: "10px 4px", border: "none", borderBottom: tab === k ? "2px solid #e07b39" : "2px solid transparent", background: "transparent", color: tab === k ? "#e07b39" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, letterSpacing: 0.5, cursor: "pointer" }}>{l}</button>
+        ))}
+      </div>
+
+      {tab === "history" ? <AttendanceHistory project={project} /> : (
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
 
         {showAdd && <AddVisitorForm projectId={project.id} userId={user.id} onSave={v => { setVisits(prev => [v, ...prev]); setShowAdd(false); }} onCancel={() => setShowAdd(false)} />}
@@ -285,8 +295,52 @@ export default function OnSiteFeature({ project, user, onBack }) {
           <EmptyState icon="👷" title="Nobody on site yet" subtitle="Workers appear here when they clock in. Use + ADD to sign in visitors or subs." />
         )}
       </div>
+      )}
 
       {signOutTarget && <SignOutModal target={signOutTarget} onConfirm={confirmSignOut} onCancel={() => setSignOutTarget(null)} />}
+    </div>
+  );
+}
+
+// Completed-shift records (closed timesheets + signed-out visits) for this project
+function AttendanceHistory({ project }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    Promise.all([
+      supabase.from("timesheets").select("*, worker:profiles(full_name, role)").eq("project_id", project.id).not("clock_out", "is", null).order("work_date", { ascending: false }).limit(100),
+      supabase.from("site_visits").select("*").eq("project_id", project.id).not("sign_out", "is", null).order("sign_in", { ascending: false }).limit(100),
+    ]).then(([ts, sv]) => {
+      const a = (ts.data || []).map(t => ({
+        id: t.id, date: t.work_date || (t.clock_in || "").slice(0, 10), name: t.worker?.full_name || "Worker",
+        role: t.worker?.role || "worker", inIso: t.clock_in, outIso: t.clock_out, hours: t.hours_worked,
+      }));
+      const b = (sv.data || []).map(v => ({
+        id: v.id, date: (v.sign_in || "").slice(0, 10), name: v.visitor_name, role: v.type || "visitor",
+        inIso: v.sign_in, outIso: v.sign_out,
+        hours: v.sign_out ? Math.round(((new Date(v.sign_out) - new Date(v.sign_in)) / 3600000) * 10) / 10 : null,
+      }));
+      setRows([...a, ...b].sort((x, y) => (y.inIso || "").localeCompare(x.inIso || "")));
+    });
+  }, [project.id]);
+
+  const fmtT = (iso) => iso ? new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true }) : "--";
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
+      {rows === null ? [1,2,3].map(i => <div key={i} style={{ height: 56, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
+        : rows.length === 0 ? <EmptyState icon="📋" title="No completed shifts yet" subtitle="Records appear here once people clock/sign out" />
+        : rows.map(r => (
+          <div key={r.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, color: "#ccc", fontWeight: 600 }}>{r.name} <span style={{ fontSize: 11, color: "#555", textTransform: "capitalize" }}>· {r.role}</span></div>
+              <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+                {r.date ? new Date(r.date).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) : "—"} · {fmtT(r.inIso)} → {fmtT(r.outIso)}
+              </div>
+            </div>
+            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: r.hours ? "#e07b39" : "#555", flexShrink: 0 }}>{r.hours != null ? `${r.hours}h` : "—"}</div>
+          </div>
+        ))
+      }
     </div>
   );
 }

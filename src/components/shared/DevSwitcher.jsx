@@ -87,29 +87,28 @@ export default function DevSwitcher() {
         </>
       )}
 
-      {/* Trigger button */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        title="Switch role"
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: "50%",
-          background: open ? "#e07b39" : "#1e1e1e",
-          border: "1px solid #2a2a2a",
-          color: open ? "#fff" : "#888",
-          fontSize: 18,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.5)",
-          transition: "background 0.15s",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        {open ? "✕" : "⇄"}
-      </button>
+      {/* Trigger button + "testing as" label */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+        {!open && (
+          <div style={{ background: "#1e1e1e", border: "1px solid #2a2a2a", borderRadius: 12, padding: "4px 10px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, letterSpacing: 0.5, color: "#e07b39", textTransform: "uppercase", whiteSpace: "nowrap", boxShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
+            Testing: {currentRole}
+          </div>
+        )}
+        <button
+          onClick={() => setOpen(o => !o)}
+          title="Switch role"
+          style={{
+            width: 40, height: 40, borderRadius: "50%",
+            background: open ? "#e07b39" : "#1e1e1e",
+            border: "1px solid #2a2a2a", color: open ? "#fff" : "#888",
+            fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", boxShadow: "0 2px 12px rgba(0,0,0,0.5)",
+            transition: "background 0.15s", WebkitTapHighlightColor: "transparent", flexShrink: 0,
+          }}
+        >
+          {open ? "✕" : "⇄"}
+        </button>
+      </div>
     </div>
   );
 }
