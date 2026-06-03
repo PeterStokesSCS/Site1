@@ -289,6 +289,20 @@ export async function getAllDocuments() {
   return { data: data || [], error };
 }
 
+export async function createDocument(payload) {
+  const { data, error } = await supabase
+    .from("documents")
+    .insert(payload)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function setDocumentSuperseded(id, superseded) {
+  const { error } = await supabase.from("documents").update({ superseded }).eq("id", id);
+  return { error };
+}
+
 // ── Commercial items (contracts, POs, quotes, invoices, receipts) ──────────────
 export async function getCommercialItems(projectId) {
   const { data, error } = await supabase

@@ -10,12 +10,13 @@ import { SafetyScreen, DailyLogScreen, VariationsScreen, ChatScreen } from "../s
 import OverviewScreen from "./OverviewScreen";
 import CommercialModule from "./CommercialModule";
 import PhotosScreen from "./PhotosScreen";
+import ProjectDocsScreen from "./ProjectDocsScreen";
 
 // §7 Project Dashboard — the project becomes its own workspace.
 // Shared by Builder (drill-in from project list) and Supervisor (home screen).
 const TILES = [
   { key: "overview",      icon: "📊", label: "Overview",      accent: "#64748b", bg: "#0c1420" },
-  { key: "plans",         icon: "📐", label: "Plans",         accent: "#3b82f6", bg: "#0c1a33" },
+  { key: "plans",         icon: "📐", label: "Project Docs",  accent: "#3b82f6", bg: "#0c1a33" },
   { key: "tasks",         icon: "✅", label: "Tasks",         accent: "#f59e0b", bg: "#251d00" },
   { key: "attendance",    icon: "👷", label: "Attendance",    accent: "#0ea5e9", bg: "#061520" },
   { key: "dailyLog",      icon: "📅", label: "Daily Logs",    accent: "#14b8a6", bg: "#061e1c" },
@@ -71,7 +72,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "variations":    return <VariationsScreen {...props} />;
       case "communication": return <ChatScreen {...props} />;
       case "overview":      return <OverviewScreen {...props} onNav={setScreen} />;
-      case "plans":         return <Soon title="Plans" {...props} />;
+      case "plans":         return <ProjectDocsScreen {...props} />;
       case "photos":        return <PhotosScreen {...props} />;
       case "commercial":    return <CommercialModule {...props} />;
       default: break;
