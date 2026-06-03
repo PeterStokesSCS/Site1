@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
 import PhotoCaptureButton from "./PhotoCaptureButton";
-import { gpsStatusLabel } from "../../lib/photoUtils";
+import CategoryBadge from "./CategoryBadge";
+import { gpsStatusLabel, PHOTO_CATEGORIES } from "../../lib/photoUtils";
 import { getPhotosForRecord, addPhoto, setPhotoClientVisible } from "../../lib/db";
 
 // Reusable photo block for any record (issue, task, hazard, daily log, defect…).
 // Photos attach to the record AND appear in the project Photos gallery.
-export default function PhotoAttach({ project, user, recordType, recordId, accent = "#a855f7" }) {
+// defaultCategory pre-tags new photos for the context (e.g. hazard→safety, daily log→progress).
+// defaultClientVisible seeds the client-visible toggle (e.g. progress photos default on).
+export default function PhotoAttach({ project, user, recordType, recordId, accent = "#a855f7", defaultCategory = "general", defaultClientVisible = false }) {
   const [photos, setPhotos] = useState(null);
   const [caption, setCaption] = useState("");
-  const [clientVisible, setClientVisible] = useState(false);
+  const [category, setCategory] = useState(defaultCategory);
+  const [clientVisible, setClientVisible] = useState(defaultClientVisible);
   const [view, setView] = useState(null); // photo being viewed full-screen
   const canSetClient = user?.role === "builder" || user?.role === "supervisor";
 
@@ -21,7 +25,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
     const { data } = await addPhoto({
       project_id: project.id, url: meta.url, taken_by: user.id,
       caption: caption.trim() || null, client_visible: clientVisible,
-      linked_record_type: recordType, linked_record_id: recordId, category: "general",
+      linked_record_type: recordType, linked_record_id: recordId, category,
       file_name: meta.file_name, file_size_kb: meta.file_size_kb,
       gps_lat: meta.gps_lat, gps_lng: meta.gps_lng, gps_accuracy_m: meta.gps_accuracy_m,
       gps_on_site: meta.gps_on_site, gps_distance_from_site_m: meta.gps_distance_from_site_m,
@@ -49,6 +53,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
           {photos.map(p => (
             <button key={p.id} onClick={() => setView(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#1a1a1a", position: "relative" }}>
               <img src={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <div style={{ position: "absolute", top: 3, left: 3 }}><CategoryBadge category={p.category || "general"} /></div>
               {p.client_visible && <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 3px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>}
             </button>
           ))}
@@ -56,6 +61,21 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
       )}
 
       {/* Add controls */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        {PHOTO_CATEGORIES.map(c => {
+          const active = category === c.key;
+          return (
+            <button key={c.key} onClick={() => setCategory(c.key)} style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              background: active ? c.color : "transparent",
+              color: active ? "#fff" : c.color,
+              border: `1px solid ${c.color}${active ? "" : "55"}`,
+              borderRadius: 14, padding: "4px 9px", cursor: "pointer",
+              fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, letterSpacing: 0.3, textTransform: "uppercase",
+            }}>{c.icon} {c.label}</button>
+          );
+        })}
+      </div>
       <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Caption (optional)" style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 13, padding: "9px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", marginBottom: 8 }} />
       {canSetClient && (
         <button onClick={() => setClientVisible(v => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "2px 0 10px" }}>
@@ -80,6 +100,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
             <img src={view.url} alt={view.caption || "photo"} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
           </div>
           <div style={{ padding: 16, maxWidth: 480, margin: "0 auto", width: "100%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ marginBottom: 8 }}><CategoryBadge category={view.category || "general"} size="lg" /></div>
             {view.caption && <div style={{ fontSize: 14, color: "#ccc", marginBottom: 8 }}>{view.caption}</div>}
             {(() => { const g = gpsStatusLabel({ gps: view.gps_lat != null ? { lat: view.gps_lat } : null, distanceM: view.gps_distance_from_site_m }); return (
               <div style={{ fontSize: 12, color: g.color, marginBottom: 8 }}>

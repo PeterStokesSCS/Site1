@@ -108,7 +108,7 @@ function IssueDetail({ issue: initial, user, onBack }) {
 
         {/* Photos */}
         <div style={{ marginBottom: 20 }}>
-          <PhotoAttach project={{ id: issue.project_id }} user={user} recordType="issue" recordId={issue.id} accent="#f97316" />
+          <PhotoAttach project={{ id: issue.project_id }} user={user} recordType="issue" recordId={issue.id} accent="#f97316" defaultCategory={issue.is_safety ? "safety" : "general"} />
         </div>
 
         {/* Comments */}

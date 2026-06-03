@@ -164,7 +164,7 @@ function TaskDetail({ task: initial, user, onBack }) {
 
         {/* Photos */}
         <div style={{ marginBottom: 20 }}>
-          <PhotoAttach project={{ id: task.project_id }} user={user} recordType="task" recordId={task.id} accent="#f59e0b" />
+          <PhotoAttach project={{ id: task.project_id }} user={user} recordType="task" recordId={task.id} accent="#f59e0b" defaultCategory="progress" />
         </div>
 
         {/* Comments */}

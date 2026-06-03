@@ -219,7 +219,7 @@ export function DailyLogScreen({ project, user, onBack }) {
                 <>
                   <LogAttendance projectId={project.id} dateStr={log.log_date} />
                   <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #1e1e1e" }}>
-                    <PhotoAttach project={project} user={user} recordType="daily_log" recordId={log.id} accent="#14b8a6" />
+                    <PhotoAttach project={project} user={user} recordType="daily_log" recordId={log.id} accent="#14b8a6" defaultCategory="progress" defaultClientVisible={true} />
                   </div>
                 </>
               )}
