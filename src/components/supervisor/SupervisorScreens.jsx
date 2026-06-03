@@ -7,6 +7,7 @@ import {
   getVariations, getMessages, sendMessage,
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
+import { supabase } from "../../lib/supabase";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
 
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -98,9 +99,24 @@ export function DailyLogScreen({ project, user, onBack }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  const [autoCount, setAutoCount] = useState(null);
+
   useEffect(() => {
     getDailyLogs(project.id).then(({ data }) => { setLogs(data); setLoading(false); });
   }, [project.id]);
+
+  // When the log form opens, pre-fill the worker count from who's actually on site now
+  useEffect(() => {
+    if (!showForm) return;
+    Promise.all([
+      supabase.from("timesheets").select("id").eq("project_id", project.id).is("clock_out", null),
+      supabase.from("site_visits").select("id").eq("project_id", project.id).is("sign_out", null),
+    ]).then(([t, v]) => {
+      const count = (t.data?.length || 0) + (v.data?.length || 0);
+      setAutoCount(count);
+      setForm(f => (f.workers_on_site === "" ? { ...f, workers_on_site: String(count) } : f));
+    });
+  }, [showForm, project.id]);
 
   const submit = async () => {
     if (!form.progress_notes) return;
@@ -127,7 +143,7 @@ export function DailyLogScreen({ project, user, onBack }) {
               </select>
             </div>
             <div>
-              <div style={lbl}>Workers on Site</div>
+              <div style={lbl}>Workers on Site {autoCount != null && <span style={{ color: "#0ea5e9", textTransform: "none", letterSpacing: 0 }}>· {autoCount} on muster</span>}</div>
               <input type="number" min="0" value={form.workers_on_site} onChange={e => setForm(f => ({ ...f, workers_on_site: e.target.value }))} placeholder="0" style={inp} />
             </div>
           </div>

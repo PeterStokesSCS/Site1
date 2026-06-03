@@ -199,8 +199,10 @@ export default function OnSiteFeature({ project, user, onBack }) {
 
   useEffect(() => {
     // "On site now" = open shift (no clock_out / sign_out), date-agnostic.
+    // No profile embed here — timesheets has two FKs to profiles (worker_id +
+    // approved_by) which makes embedding ambiguous; we join names from `profiles`.
     Promise.all([
-      supabase.from("timesheets").select("*, worker:profiles(id, full_name, role)").eq("project_id", project.id).is("clock_out", null),
+      supabase.from("timesheets").select("*").eq("project_id", project.id).is("clock_out", null),
       supabase.from("site_visits").select("*").eq("project_id", project.id).is("sign_out", null),
       supabase.from("profiles").select("*"),
     ]).then(([t, v, p]) => {
@@ -216,7 +218,10 @@ export default function OnSiteFeature({ project, user, onBack }) {
     return <WorkerDetail worker={selectedWorker} timesheet={ts} user={user} onBack={() => setSelectedWorker(null)} projectId={project.id} />;
   }
 
-  const workers = timesheets.map(ts => ({ ...ts.worker, timesheet: ts }));
+  const workers = timesheets.map(ts => {
+    const p = profiles.find(x => x.id === ts.worker_id);
+    return { id: ts.worker_id, full_name: p?.full_name || "Worker", role: p?.role || "worker", timesheet: ts };
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
@@ -308,13 +313,18 @@ function AttendanceHistory({ project }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     Promise.all([
-      supabase.from("timesheets").select("*, worker:profiles(full_name, role)").eq("project_id", project.id).not("clock_out", "is", null).order("work_date", { ascending: false }).limit(100),
+      supabase.from("timesheets").select("*").eq("project_id", project.id).not("clock_out", "is", null).order("clock_in", { ascending: false }).limit(100),
       supabase.from("site_visits").select("*").eq("project_id", project.id).not("sign_out", "is", null).order("sign_in", { ascending: false }).limit(100),
-    ]).then(([ts, sv]) => {
-      const a = (ts.data || []).map(t => ({
-        id: t.id, date: t.work_date || (t.clock_in || "").slice(0, 10), name: t.worker?.full_name || "Worker",
-        role: t.worker?.role || "worker", inIso: t.clock_in, outIso: t.clock_out, hours: t.hours_worked,
-      }));
+      supabase.from("profiles").select("id, full_name, role"),
+    ]).then(([ts, sv, pr]) => {
+      const pmap = Object.fromEntries((pr.data || []).map(p => [p.id, p]));
+      const a = (ts.data || []).map(t => {
+        const p = pmap[t.worker_id];
+        return {
+          id: t.id, date: t.work_date || (t.clock_in || "").slice(0, 10), name: p?.full_name || "Worker",
+          role: p?.role || "worker", inIso: t.clock_in, outIso: t.clock_out, hours: t.hours_worked,
+        };
+      });
       const b = (sv.data || []).map(v => ({
         id: v.id, date: (v.sign_in || "").slice(0, 10), name: v.visitor_name, role: v.type || "visitor",
         inIso: v.sign_in, outIso: v.sign_out,

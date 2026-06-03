@@ -164,9 +164,11 @@ export async function getTodayClockIn(workerId) {
 }
 
 export async function getAllTimesheets() {
+  // Disambiguate the worker embed — timesheets has two FKs to profiles
+  // (worker_id + approved_by).
   const { data, error } = await supabase
     .from("timesheets")
-    .select("*, worker:profiles(full_name), project:projects(street, job_number)")
+    .select("*, worker:profiles!timesheets_worker_id_fkey(full_name), project:projects(street, job_number)")
     .order("created_at", { ascending: false });
   return { data: data || [], error };
 }
