@@ -5,7 +5,7 @@ import FileUploadButton from "./FileUploadButton";
 import { getPhotos, addPhoto, updatePhotoCaption, setPhotoClientVisible } from "../../lib/db";
 
 // Full-screen photo viewer with editable caption + client-visible toggle
-function Lightbox({ photo, onClose, onCaption }) {
+function Lightbox({ photo, onClose, onCaption, canSetClient }) {
   const [caption, setCaption] = useState(photo.caption || "");
   const [clientVisible, setClientVisible] = useState(!!photo.client_visible);
   const [saved, setSaved] = useState(false);
@@ -38,12 +38,19 @@ function Lightbox({ photo, onClose, onCaption }) {
           <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Add a caption…" style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif" }} />
           <button onClick={save} style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: saved ? "#22c55e" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>{saved ? "SAVED" : "SAVE"}</button>
         </div>
-        <button onClick={toggleClient} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", marginTop: 12 }}>
-          <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${clientVisible ? "#22c55e" : "#555"}`, background: clientVisible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {clientVisible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+        {canSetClient ? (
+          <button onClick={toggleClient} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", marginTop: 12 }}>
+            <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${clientVisible ? "#22c55e" : "#555"}`, background: clientVisible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {clientVisible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 13, color: clientVisible ? "#22c55e" : "#888" }}>Visible to client</span>
+          </button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+            <span style={{ fontSize: 10, color: clientVisible ? "#22c55e" : "#555" }}>●</span>
+            <span style={{ fontSize: 13, color: clientVisible ? "#22c55e" : "#888" }}>{clientVisible ? "Visible to client" : "Internal only"}</span>
           </div>
-          <span style={{ fontSize: 13, color: clientVisible ? "#22c55e" : "#888" }}>Visible to client</span>
-        </button>
+        )}
       </div>
     </div>
   );
@@ -98,7 +105,7 @@ export default function PhotosScreen({ project, user, onBack }) {
         )}
       </div>
 
-      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} />}
+      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} canSetClient={user?.role === "builder" || user?.role === "supervisor"} />}
     </div>
   );
 }

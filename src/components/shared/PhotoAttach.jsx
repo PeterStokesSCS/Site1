@@ -9,6 +9,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
   const [caption, setCaption] = useState("");
   const [clientVisible, setClientVisible] = useState(false);
   const [view, setView] = useState(null); // photo being viewed full-screen
+  const canSetClient = user?.role === "builder" || user?.role === "supervisor";
 
   useEffect(() => {
     if (!recordId) return;
@@ -51,12 +52,14 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
 
       {/* Add controls */}
       <input value={caption} onChange={e => setCaption(e.target.value)} placeholder="Caption (optional)" style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 13, padding: "9px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", marginBottom: 8 }} />
-      <button onClick={() => setClientVisible(v => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "2px 0 10px" }}>
-        <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${clientVisible ? "#22c55e" : "#333"}`, background: clientVisible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {clientVisible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
-        </div>
-        <span style={{ fontSize: 12, color: clientVisible ? "#22c55e" : "#888" }}>Visible to client</span>
-      </button>
+      {canSetClient && (
+        <button onClick={() => setClientVisible(v => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "2px 0 10px" }}>
+          <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${clientVisible ? "#22c55e" : "#333"}`, background: clientVisible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {clientVisible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+          </div>
+          <span style={{ fontSize: 12, color: clientVisible ? "#22c55e" : "#888" }}>Visible to client</span>
+        </button>
+      )}
       <div style={{ display: "flex", gap: 8 }}>
         <FileUploadButton folder={`records/${project.id}/${recordType}`} accept="image/*" capture="environment" label="📷 Take photo" color={accent} onUploaded={onUploaded} />
         <FileUploadButton folder={`records/${project.id}/${recordType}`} accept="image/*" label="📎 Add" onUploaded={onUploaded} />
@@ -73,12 +76,19 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
           </div>
           <div style={{ padding: 16, maxWidth: 480, margin: "0 auto", width: "100%" }} onClick={e => e.stopPropagation()}>
             {view.caption && <div style={{ fontSize: 14, color: "#ccc", marginBottom: 8 }}>{view.caption}</div>}
-            <button onClick={() => { toggleClient(view); setView(v => ({ ...v, client_visible: !v.client_visible })); }} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer" }}>
-              <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${view.client_visible ? "#22c55e" : "#555"}`, background: view.client_visible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {view.client_visible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+            {canSetClient ? (
+              <button onClick={() => { toggleClient(view); setView(v => ({ ...v, client_visible: !v.client_visible })); }} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer" }}>
+                <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${view.client_visible ? "#22c55e" : "#555"}`, background: view.client_visible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {view.client_visible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 13, color: view.client_visible ? "#22c55e" : "#888" }}>Visible to client</span>
+              </button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 10, color: view.client_visible ? "#22c55e" : "#555" }}>●</span>
+                <span style={{ fontSize: 13, color: view.client_visible ? "#22c55e" : "#888" }}>{view.client_visible ? "Visible to client" : "Internal only"}</span>
               </div>
-              <span style={{ fontSize: 13, color: view.client_visible ? "#22c55e" : "#888" }}>Visible to client</span>
-            </button>
+            )}
           </div>
         </div>
       )}
