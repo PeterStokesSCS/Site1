@@ -36,7 +36,7 @@ function NewProjectModal({ onSave, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 14, width: "100%", maxWidth: 500, padding: 24, maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 14, width: "100%", maxWidth: 500, padding: 24, maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}>
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f0f0", marginBottom: 20 }}>NEW PROJECT</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
