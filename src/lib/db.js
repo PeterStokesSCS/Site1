@@ -289,6 +289,16 @@ export async function getAllDocuments() {
   return { data: data || [], error };
 }
 
+// ── Milestones ─────────────────────────────────────────────────────────────────
+export async function getMilestones(projectId) {
+  const { data, error } = await supabase
+    .from("milestones")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("sort_order", { ascending: true });
+  return { data: data || [], error };
+}
+
 // ── Users ──────────────────────────────────────────────────────────────────────
 export async function getProfiles() {
   const { data, error } = await supabase
