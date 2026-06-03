@@ -150,18 +150,84 @@ function DashboardTab({ projects, timesheets, onNavigate }) {
 
 // ── Projects tab ───────────────────────────────────────────────────────────────
 function ProjectsTab({ projects, onProjectCreated }) {
-  const [showModal, setShowModal] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ job_number: "", street: "", suburb: "", client_name: "", client_email: "", client_phone: "", budget: "", phase: "Planning", status: "planning", health: "green" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    if (!form.job_number.trim()) { setError("Job Number is required."); return; }
+    if (!form.street.trim()) { setError("Street Address is required."); return; }
+    setSaving(true); setError(null);
+    const { data, error } = await createProject({ ...form, budget: parseFloat(form.budget) || null });
+    if (error) { setError(error.message); setSaving(false); return; }
+    onProjectCreated(data);
+    setShowForm(false);
+    setForm({ job_number: "", street: "", suburb: "", client_name: "", client_email: "", client_phone: "", budget: "", phase: "Planning", status: "planning", health: "green" });
+    setSaving(false);
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f0f0" }}>PROJECTS</div>
-        <button onClick={() => setShowModal(true)} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>+ NEW PROJECT</button>
+        <button onClick={() => setShowForm(s => !s)} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: showForm ? "#333" : "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>
+          {showForm ? "CANCEL" : "+ NEW PROJECT"}
+        </button>
       </div>
-      {projects.length === 0
-        ? <EmptyState icon="🏗" title="No projects yet" subtitle="Create your first project" action={<button onClick={() => setShowModal(true)} style={{ padding: "12px 24px", borderRadius: 10, border: "none", background: "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: "pointer" }}>CREATE PROJECT</button>} />
+
+      {showForm && (
+        <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 14, padding: 24, marginBottom: 24 }}>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: "#e07b39", marginBottom: 16 }}>NEW PROJECT</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 4 }}>
+            <div style={field}>
+              <label style={lbl}>Job Number *</label>
+              <input value={form.job_number} onChange={e => set("job_number", e.target.value)} placeholder="SCS-004" style={inp} />
+            </div>
+            <div style={field}>
+              <label style={lbl}>Phase</label>
+              <input value={form.phase} onChange={e => set("phase", e.target.value)} placeholder="Planning" style={inp} />
+            </div>
+          </div>
+          <div style={field}>
+            <label style={lbl}>Street Address *</label>
+            <input value={form.street} onChange={e => set("street", e.target.value)} placeholder="12 Example Street" style={inp} />
+          </div>
+          <div style={field}>
+            <label style={lbl}>Suburb / State</label>
+            <input value={form.suburb} onChange={e => set("suburb", e.target.value)} placeholder="Sassafras VIC 3787" style={inp} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={field}>
+              <label style={lbl}>Client Name</label>
+              <input value={form.client_name} onChange={e => set("client_name", e.target.value)} placeholder="John & Jane Smith" style={inp} />
+            </div>
+            <div style={field}>
+              <label style={lbl}>Budget ($)</label>
+              <input type="number" value={form.budget} onChange={e => set("budget", e.target.value)} placeholder="350000" style={inp} />
+            </div>
+            <div style={field}>
+              <label style={lbl}>Client Email</label>
+              <input value={form.client_email} onChange={e => set("client_email", e.target.value)} placeholder="client@email.com" style={inp} />
+            </div>
+            <div style={field}>
+              <label style={lbl}>Client Phone</label>
+              <input value={form.client_phone} onChange={e => set("client_phone", e.target.value)} placeholder="0400 000 000" style={inp} />
+            </div>
+          </div>
+          {error && <div style={{ color: "#ef4444", fontSize: 13, marginBottom: 12 }}>{error}</div>}
+          <button onClick={save} disabled={saving} style={{ width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 17, cursor: saving ? "not-allowed" : "pointer", marginTop: 4 }}>
+            {saving ? "SAVING..." : "CREATE PROJECT"}
+          </button>
+        </div>
+      )}
+
+      {projects.length === 0 && !showForm
+        ? <EmptyState icon="🏗" title="No projects yet" subtitle="Click + NEW PROJECT to get started" />
         : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>{projects.map(p => <ProjectCard key={p.id} project={p} />)}</div>
       }
-      {showModal && <NewProjectModal onSave={p => { onProjectCreated(p); setShowModal(false); }} onClose={() => setShowModal(false)} />}
     </div>
   );
 }
