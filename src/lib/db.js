@@ -359,7 +359,7 @@ export async function updateCommercialStatus(id, status) {
 export async function getPhotos(projectId) {
   const { data, error } = await supabase
     .from("project_photos")
-    .select("*, taken_by:profiles(full_name)")
+    .select("*, taken_by:profiles(id, full_name)")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   return { data: data || [], error };
@@ -369,7 +369,7 @@ export async function addPhoto(payload) {
   const { data, error } = await supabase
     .from("project_photos")
     .insert(payload)
-    .select("*, taken_by:profiles(full_name)")
+    .select("*, taken_by:profiles(id, full_name)")
     .single();
   return { data, error };
 }
@@ -383,11 +383,16 @@ export async function updatePhotoCaption(id, caption) {
 export async function getPhotosForRecord(recordType, recordId) {
   const { data, error } = await supabase
     .from("project_photos")
-    .select("*, taken_by:profiles(full_name)")
+    .select("*, taken_by:profiles(id, full_name)")
     .eq("linked_record_type", recordType)
     .eq("linked_record_id", recordId)
     .order("created_at", { ascending: false });
   return { data: data || [], error };
+}
+
+export async function deletePhoto(id) {
+  const { error } = await supabase.from("project_photos").delete().eq("id", id);
+  return { error };
 }
 
 export async function updatePhotoCategory(id, category) {

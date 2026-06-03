@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import PhotoCaptureButton from "./PhotoCaptureButton";
 import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES } from "../../lib/photoUtils";
-import { getPhotosForRecord, addPhoto, setPhotoClientVisible } from "../../lib/db";
+import { getPhotosForRecord, addPhoto, setPhotoClientVisible, deletePhoto } from "../../lib/db";
+import { removeFile } from "../../lib/storage";
 
 // Reusable photo block for any record (issue, task, hazard, daily log, defect…).
 // Photos attach to the record AND appear in the project Photos gallery.
@@ -14,6 +15,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
   const [category, setCategory] = useState(defaultCategory);
   const [clientVisible, setClientVisible] = useState(defaultClientVisible);
   const [view, setView] = useState(null); // photo being viewed full-screen
+  const [confirmDel, setConfirmDel] = useState(false);
   const canSetClient = user?.role === "builder" || user?.role === "supervisor";
 
   useEffect(() => {
@@ -41,6 +43,15 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
     await setPhotoClientVisible(photo.id, next);
   };
 
+  const canDelete = (p) => canSetClient || p.taken_by?.id === user?.id || p.taken_by === user?.id;
+
+  const removePhoto = async (photo) => {
+    setPhotos(p => p.filter(x => x.id !== photo.id));
+    setView(null);
+    await deletePhoto(photo.id);
+    removeFile(photo.url).catch(() => {});
+  };
+
   return (
     <div>
       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>
@@ -51,7 +62,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
       {photos?.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 12 }}>
           {photos.map(p => (
-            <button key={p.id} onClick={() => setView(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#1a1a1a", position: "relative" }}>
+            <button key={p.id} onClick={() => { setConfirmDel(false); setView(p); }} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#1a1a1a", position: "relative" }}>
               <img src={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               <div style={{ position: "absolute", top: 3, left: 3 }}><CategoryBadge category={p.category || "general"} /></div>
               {p.client_visible && <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 3px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>}
@@ -120,6 +131,17 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
                 <span style={{ fontSize: 10, color: view.client_visible ? "#22c55e" : "#555" }}>●</span>
                 <span style={{ fontSize: 13, color: view.client_visible ? "#22c55e" : "#888" }}>{view.client_visible ? "Visible to client" : "Internal only"}</span>
               </div>
+            )}
+            {canDelete(view) && (
+              confirmDel ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
+                  <span style={{ fontSize: 13, color: "#ef4444", flex: 1 }}>Delete this photo?</span>
+                  <button onClick={() => { setConfirmDel(false); removePhoto(view); }} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#ef4444", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>DELETE</button>
+                  <button onClick={() => setConfirmDel(false)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>CANCEL</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDel(true)} style={{ marginTop: 14, background: "transparent", border: "none", color: "#ef4444", fontSize: 13, cursor: "pointer", padding: 0, fontFamily: "DM Sans, sans-serif" }}>🗑 Delete photo</button>
+              )
             )}
           </div>
         </div>

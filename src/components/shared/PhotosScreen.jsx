@@ -4,14 +4,16 @@ import { EmptyState } from "./LoadingScreen";
 import PhotoCaptureButton from "./PhotoCaptureButton";
 import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES, categoryMeta } from "../../lib/photoUtils";
-import { getPhotos, addPhoto, updatePhotoCaption, updatePhotoCategory, setPhotoClientVisible } from "../../lib/db";
+import { getPhotos, addPhoto, updatePhotoCaption, updatePhotoCategory, setPhotoClientVisible, deletePhoto } from "../../lib/db";
+import { removeFile } from "../../lib/storage";
 
 // Full-screen photo viewer with editable caption, category + client-visible toggle
-function Lightbox({ photo, onClose, onCaption, onCategory, onClientChange, canSetClient }) {
+function Lightbox({ photo, onClose, onCaption, onCategory, onClientChange, onDelete, canSetClient, canDelete }) {
   const [caption, setCaption] = useState(photo.caption || "");
   const [category, setCategory] = useState(photo.category || "general");
   const [clientVisible, setClientVisible] = useState(!!photo.client_visible);
   const [saved, setSaved] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   const save = async () => {
     await onCaption(photo.id, caption);
@@ -88,6 +90,17 @@ function Lightbox({ photo, onClose, onCaption, onCategory, onClientChange, canSe
             <span style={{ fontSize: 13, color: clientVisible ? "#22c55e" : "#888" }}>{clientVisible ? "Visible to client" : "Internal only"}</span>
           </div>
         )}
+        {canDelete && (
+          confirmDel ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14 }}>
+              <span style={{ fontSize: 13, color: "#ef4444", flex: 1 }}>Delete this photo?</span>
+              <button onClick={() => onDelete(photo)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#ef4444", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>DELETE</button>
+              <button onClick={() => setConfirmDel(false)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>CANCEL</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDel(true)} style={{ marginTop: 14, background: "transparent", border: "none", color: "#ef4444", fontSize: 13, cursor: "pointer", padding: 0, fontFamily: "DM Sans, sans-serif" }}>🗑 Delete photo</button>
+          )
+        )}
       </div>
     </div>
   );
@@ -132,6 +145,15 @@ export default function PhotosScreen({ project, user, onBack }) {
   const onClientChange = (id, value) => {
     setPhotos(prev => prev.map(p => p.id === id ? { ...p, client_visible: value } : p));
     setLightbox(lb => (lb && lb.id === id ? { ...lb, client_visible: value } : lb));
+  };
+
+  const canDelete = (p) => user?.role === "builder" || user?.role === "supervisor" || p.taken_by?.id === user?.id || p.taken_by === user?.id;
+
+  const onDelete = async (p) => {
+    setPhotos(prev => prev.filter(x => x.id !== p.id));
+    setLightbox(null);
+    await deletePhoto(p.id);
+    removeFile(p.url).catch(() => {});
   };
 
   const counts = useMemo(() => {
@@ -206,7 +228,7 @@ export default function PhotosScreen({ project, user, onBack }) {
         )}
       </div>
 
-      {lightbox && <Lightbox photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} onCategory={saveCategory} onClientChange={onClientChange} canSetClient={user?.role === "builder" || user?.role === "supervisor"} />}
+      {lightbox && <Lightbox key={lightbox.id} photo={lightbox} onClose={() => setLightbox(null)} onCaption={saveCaption} onCategory={saveCategory} onClientChange={onClientChange} onDelete={onDelete} canSetClient={user?.role === "builder" || user?.role === "supervisor"} canDelete={canDelete(lightbox)} />}
     </div>
   );
 }
