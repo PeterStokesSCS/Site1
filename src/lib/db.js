@@ -278,6 +278,12 @@ export async function updateVariationStatus(id, status, approverId) {
   return { error };
 }
 
+// Generic variation update (used for issuing to client + capturing digital sign-off).
+export async function updateVariation(id, patch) {
+  const { data, error } = await supabase.from("variations").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
 // ── Messages ───────────────────────────────────────────────────────────────────
 export async function getMessages(projectId, channel) {
   const query = supabase

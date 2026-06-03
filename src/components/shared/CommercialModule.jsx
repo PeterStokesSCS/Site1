@@ -3,7 +3,7 @@ import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
 import { extractReceipt } from "../../lib/ai";
-import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations, createVariation, updateVariationStatus } from "../../lib/db";
+import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations, createVariation, updateVariationStatus, updateVariation } from "../../lib/db";
 
 function AttachLink({ url }) {
   if (!url) return null;
@@ -29,6 +29,7 @@ const CATEGORIES = [
 const STATUS = {
   draft:    { label: "Draft",            color: "#888",    bg: "#1a1a1a" },
   pending:  { label: "Pending Approval", color: "#f59e0b", bg: "#251d00" },
+  sent:     { label: "Awaiting Sign-off",color: "#0ea5e9", bg: "#0c2233" },
   revision: { label: "Revision Required",color: "#ef4444", bg: "#2a0c0c" },
   approved: { label: "Approved",         color: "#22c55e", bg: "#06200e" },
   rejected: { label: "Rejected",         color: "#ef4444", bg: "#2a0c0c" },
@@ -196,6 +197,13 @@ function VariationsList({ project, user, onBack }) {
     await updateVariationStatus(id, status, status === "approved" ? user.id : null);
   };
 
+  // Issue a variation to the client for digital sign-off.
+  const issue = async (v) => {
+    const history = [...(v.revision_history || []), { action: "issued", by: user.id, at: new Date().toISOString() }];
+    setVars(prev => prev.map(x => x.id === v.id ? { ...x, status: "sent", revision_history: history } : x));
+    await updateVariation(v.id, { status: "sent", revision_history: history });
+  };
+
   const approved = (vars || []).filter(v => v.status === "approved").reduce((s, v) => s + (v.amount || 0), 0);
 
   return (
@@ -214,7 +222,7 @@ function VariationsList({ project, user, onBack }) {
               <FileUploadButton folder={`variations/${project.id}`} accept="image/*" capture="environment" label="📷 Photo" color="#a855f7" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
               {form.file_url && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ attached</span>}
             </div>
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>Client digital sign-off coming in the next pass.</div>
+            <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>Once raised, send it to the client for digital sign-off.</div>
             <button onClick={save} disabled={saving || !form.title.trim()} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: form.title.trim() ? "#6366f1" : "#222", color: form.title.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: form.title.trim() ? "pointer" : "not-allowed" }}>{saving ? "SAVING..." : "RAISE VARIATION"}</button>
           </div>
         )}
@@ -237,7 +245,24 @@ function VariationsList({ project, user, onBack }) {
                       <div style={{ marginTop: 4 }}><StatusBadge status={v.status} /></div>
                     </div>
                   </div>
+                  {/* Digital sign-off record (legal layer) */}
+                  {v.client_approved && (
+                    <div style={{ marginTop: 10, background: "#06200e", border: "1px solid #22c55e44", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#9ae6b4" }}>
+                      ✓ Signed by <b>{v.client_signature}</b>{v.approval_date ? ` · ${new Date(v.approval_date).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </div>
+                  )}
+                  {v.status === "rejected" && v.client_signature && !v.client_approved && (
+                    <div style={{ marginTop: 10, background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#f0a0a0" }}>
+                      ✕ Declined by <b>{v.client_signature}</b>{v.approval_date ? ` · ${new Date(v.approval_date).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                    {(v.status === "pending" || v.status === "draft") && (
+                      <button onClick={() => issue(v)} style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, cursor: "pointer", textTransform: "uppercase" }}>✍ Send to client for sign-off</button>
+                    )}
+                    {v.status === "sent" && (
+                      <span style={{ fontSize: 11, color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif", padding: "6px 0" }}>Awaiting client sign-off…</span>
+                    )}
                     {["pending","approved","rejected"].filter(s => s !== v.status).map(s => (
                       <button key={s} onClick={() => setStatus(v.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: STATUS[s]?.color || "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, cursor: "pointer", textTransform: "uppercase" }}>→ {STATUS[s]?.label || s}</button>
                     ))}

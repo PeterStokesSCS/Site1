@@ -3,7 +3,7 @@ import AppTile from "../shared/AppTile";
 import BackHeader from "../shared/BackHeader";
 import { EmptyState, Skeleton, CardSkeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
-import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos } from "../../lib/db";
+import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos, updateVariation } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
 
 // Client progress gallery — only photos the team marked visible to the client
@@ -135,12 +135,87 @@ function DocumentsScreen({ project, onBack }) {
   );
 }
 
+// ── Variation digital sign-off modal (legal layer) ─────────────────────────────
+function SignOffModal({ variation, user, onClose, onDone }) {
+  const [name, setName] = useState(user?.name || "");
+  const [mode, setMode] = useState(null); // 'approve' | 'reject'
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const v = variation;
+
+  const submit = async (decision) => {
+    if (!name.trim()) return;
+    setSaving(true);
+    const nowIso = new Date().toISOString();
+    const history = [...(v.revision_history || []), {
+      action: decision, by: name.trim(), at: nowIso, ...(decision === "rejected" && reason.trim() ? { reason: reason.trim() } : {}),
+    }];
+    const patch = decision === "approved"
+      ? { status: "approved", client_approved: true, client_signature: name.trim(), approval_date: nowIso, revision_history: history }
+      : { status: "rejected", client_approved: false, client_signature: name.trim(), approval_date: nowIso, revision_history: history };
+    const { data } = await updateVariation(v.id, patch);
+    setSaving(false);
+    onDone(data || { ...v, ...patch });
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", zIndex: 400, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+      <div style={{ maxWidth: 460, margin: "0 auto", width: "100%", padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, color: "#fff", letterSpacing: 0.5 }}>VARIATION SIGN-OFF</div>
+          <button onClick={onClose} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 18, width: 38, height: 38, cursor: "pointer" }}>✕</button>
+        </div>
+
+        <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{v.ref || "VARIATION"}</div>
+          <div style={{ fontSize: 17, color: "#f0f0f0", margin: "4px 0 10px" }}>{v.title}</div>
+          {v.description && <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.5, marginBottom: 12 }}>{v.description}</div>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #222", paddingTop: 12 }}>
+            <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", fontFamily: "Barlow Condensed, sans-serif" }}>Cost impact</span>
+            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, color: "#e07b39" }}>{v.amount ? `$${v.amount.toLocaleString()}` : "TBC"}</span>
+          </div>
+          {v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>📎 View attached document</a>}
+        </div>
+
+        <div style={{ fontSize: 12, color: "#777", lineHeight: 1.5, marginBottom: 12 }}>
+          By signing below you confirm you have reviewed this variation and agree to the change in scope and the cost impact shown. Your name, the date and time will be recorded as your electronic signature.
+        </div>
+
+        <label style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif" }}>Type your full name to sign</label>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Your full legal name" style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 16, padding: "12px 14px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", margin: "6px 0 14px" }} />
+
+        {mode === "reject" && (
+          <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason for declining (optional)" rows={2} style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", marginBottom: 14, resize: "vertical" }} />
+        )}
+
+        {mode === null ? (
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setMode("approve")} disabled={!name.trim()} style={{ flex: 2, padding: "14px", borderRadius: 10, border: "none", background: name.trim() ? "#22c55e" : "#173a23", color: name.trim() ? "#fff" : "#5a7", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: name.trim() ? "pointer" : "not-allowed", letterSpacing: 0.5 }}>✓ APPROVE & SIGN</button>
+            <button onClick={() => setMode("reject")} style={{ flex: 1, padding: "14px", borderRadius: 10, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: "pointer" }}>DECLINE</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => submit(mode === "approve" ? "approved" : "rejected")} disabled={saving || !name.trim()} style={{ flex: 2, padding: "14px", borderRadius: 10, border: "none", background: mode === "approve" ? "#22c55e" : "#ef4444", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: "pointer", letterSpacing: 0.5 }}>{saving ? "SIGNING…" : mode === "approve" ? `CONFIRM APPROVAL — ${name.trim()}` : `CONFIRM DECLINE`}</button>
+            <button onClick={() => setMode(null)} style={{ flex: 1, padding: "14px", borderRadius: 10, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, cursor: "pointer" }}>BACK</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Variations screen ──────────────────────────────────────────────────────────
-function VariationsScreen({ project, onBack }) {
+function VariationsScreen({ project, user, onBack }) {
   const [vars, setVars] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [signing, setSigning] = useState(null);
 
   useEffect(() => { getVariations(project.id).then(({ data }) => { setVars(data); setLoading(false); }); }, [project.id]);
+
+  const onDone = (updated) => {
+    setVars(prev => prev.map(v => v.id === updated.id ? { ...v, ...updated } : v));
+    setSigning(null);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
@@ -149,22 +224,40 @@ function VariationsScreen({ project, onBack }) {
         {loading ? [1,2].map(i => <div key={i} style={{ height: 70, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
           : vars.length === 0
             ? <EmptyState icon="±" title="No variations" subtitle="Any changes to your contract will be listed here" />
-            : vars.map(v => (
-              <div key={v.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px", marginBottom: 8 }}>
+            : vars.map(v => {
+              const awaiting = v.status === "sent";
+              return (
+              <div key={v.id} style={{ background: "#141414", border: `1px solid ${awaiting ? "#0ea5e955" : "#1e1e1e"}`, borderRadius: 10, padding: "14px", marginBottom: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{v.ref || "—"}</div>
                     <div style={{ fontSize: 14, color: "#ccc", marginTop: 2 }}>{v.title}</div>
+                    {v.description && <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{v.description}</div>}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, color: "#e07b39" }}>{v.amount ? `$${v.amount.toLocaleString()}` : "TBC"}</div>
-                    <div style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: v.status === "approved" ? "#22c55e" : "#f59e0b", marginTop: 3 }}>{v.status?.toUpperCase()}</div>
+                    <div style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: v.status === "approved" ? "#22c55e" : v.status === "rejected" ? "#ef4444" : awaiting ? "#0ea5e9" : "#f59e0b", marginTop: 3 }}>{awaiting ? "AWAITING YOUR SIGN-OFF" : v.status?.toUpperCase()}</div>
                   </div>
                 </div>
+                {v.client_approved && (
+                  <div style={{ marginTop: 10, background: "#06200e", border: "1px solid #22c55e44", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#9ae6b4" }}>
+                    ✓ You approved this — signed <b>{v.client_signature}</b>{v.approval_date ? ` on ${new Date(v.approval_date).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                  </div>
+                )}
+                {v.status === "rejected" && !v.client_approved && v.client_signature && (
+                  <div style={{ marginTop: 10, background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#f0a0a0" }}>
+                    ✕ You declined this on {v.approval_date ? new Date(v.approval_date).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                  </div>
+                )}
+                {awaiting && (
+                  <button onClick={() => setSigning(v)} style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 10, border: "none", background: "#0ea5e9", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer", letterSpacing: 0.5 }}>✍ REVIEW & SIGN</button>
+                )}
               </div>
-            ))
+              );
+            })
         }
       </div>
+      {signing && <SignOffModal variation={signing} user={user} onClose={() => setSigning(null)} onDone={onDone} />}
     </div>
   );
 }
@@ -198,7 +291,7 @@ export default function ClientApp({ user }) {
       setProject(p);
       if (p) {
         const { data: vs } = await getVariations(p.id);
-        setPendingVars(vs.filter(v => v.status === "pending").length);
+        setPendingVars(vs.filter(v => v.status === "sent").length);
       }
       setLoading(false);
     })();
@@ -230,7 +323,7 @@ export default function ClientApp({ user }) {
     switch (screen) {
       case "updates":    return <ProgressScreen {...props} />;
       case "documents":  return <DocumentsScreen {...props} />;
-      case "variations": return <VariationsScreen {...props} />;
+      case "variations": return <VariationsScreen {...props} user={user} />;
       case "schedule":   return <SoonScreen title="Schedule" icon="📅" {...props} />;
       case "photos":     return <ClientPhotosScreen {...props} />;
       case "invoices":   return <SoonScreen title="Invoices" icon="💳" {...props} />;
