@@ -371,7 +371,7 @@ export default function SupervisorApp({ user }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c", maxWidth: 430, margin: "0 auto" }}>
-      <ProjectHeader project={project} user={user} onSwitch={projects.length > 1 ? setProjectId : null} />
+      <ProjectHeader project={project} projects={projects} user={user} onSwitch={projects.length > 1 ? setProjectId : null} />
       <div style={{ display: "flex", gap: 8, padding: "12px 16px 0", flexShrink: 0 }}>
         <Stat value={stats.onSite}  label="On Site"   color="#0ea5e9" onClick={() => setScreen("onSite")} />
         <Stat value={stats.tasks}   label="Tasks Due" color="#f59e0b" onClick={() => setScreen("tasks")} />

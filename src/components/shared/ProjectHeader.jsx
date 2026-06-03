@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { mockProjects } from "../../data/mockData";
 import { HEALTH } from "../../lib/theme";
 
-export default function ProjectHeader({ project, onSwitch, user, rightSlot }) {
+// Real Supabase rows use snake_case (job_number); legacy/mock used camelCase (jobNumber).
+const jobNumberOf = (p) => p.job_number ?? p.jobNumber;
+
+export default function ProjectHeader({ project, projects = [], onSwitch, user, rightSlot }) {
   const [showPicker, setShowPicker] = useState(false);
   const health = HEALTH[project.health] || HEALTH.green;
+  const switchList = projects.length ? projects : [project];
+  const jobNumber = jobNumberOf(project);
 
   return (
     <>
@@ -41,9 +45,9 @@ export default function ProjectHeader({ project, onSwitch, user, rightSlot }) {
             WebkitTapHighlightColor: "transparent",
           }}
         >
-          {project.jobNumber && (
+          {jobNumber && (
             <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>
-              JOB {project.jobNumber}
+              JOB {jobNumber}
             </div>
           )}
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f0f0", textTransform: "uppercase", letterSpacing: 0.5, lineHeight: 1.1 }}>
@@ -73,7 +77,7 @@ export default function ProjectHeader({ project, onSwitch, user, rightSlot }) {
         >
           <div style={{ background: "#141414", borderRadius: "20px 20px 0 0", width: "100%", padding: "20px 16px 32px" }} onClick={e => e.stopPropagation()}>
             <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 16 }}>Switch Project</div>
-            {mockProjects.map(p => {
+            {switchList.map(p => {
               const h = HEALTH[p.health] || HEALTH.green;
               return (
                 <button
@@ -86,7 +90,7 @@ export default function ProjectHeader({ project, onSwitch, user, rightSlot }) {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 10, color: "#555", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase" }}>{p.jobNumber}</div>
+                    <div style={{ fontSize: 10, color: "#555", fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 1, textTransform: "uppercase" }}>{jobNumberOf(p)}</div>
                     <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f0f0", textTransform: "uppercase" }}>{p.street}</div>
                     <div style={{ fontSize: 12, color: "#555" }}>{p.suburb}</div>
                   </div>
