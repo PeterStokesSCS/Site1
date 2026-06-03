@@ -313,6 +313,30 @@ export async function updateCommercialStatus(id, status) {
   return { error };
 }
 
+// ── Project photos ─────────────────────────────────────────────────────────────
+export async function getPhotos(projectId) {
+  const { data, error } = await supabase
+    .from("project_photos")
+    .select("*, taken_by:profiles(full_name)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function addPhoto(payload) {
+  const { data, error } = await supabase
+    .from("project_photos")
+    .insert(payload)
+    .select("*, taken_by:profiles(full_name)")
+    .single();
+  return { data, error };
+}
+
+export async function updatePhotoCaption(id, caption) {
+  const { error } = await supabase.from("project_photos").update({ caption }).eq("id", id);
+  return { error };
+}
+
 // ── Milestones ─────────────────────────────────────────────────────────────────
 export async function getMilestones(projectId) {
   const { data, error } = await supabase
