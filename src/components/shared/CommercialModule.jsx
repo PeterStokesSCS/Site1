@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
+import { extractReceipt } from "../../lib/ai";
 import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations, createVariation, updateVariationStatus } from "../../lib/db";
 
 function AttachLink({ url }) {
@@ -47,9 +48,30 @@ function CategoryList({ project, user, category, onBack }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", ref: "", vendor: "", amount: "", status: "draft", description: "", file_url: "" });
   const [saving, setSaving] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractMsg, setExtractMsg] = useState(null);
 
   const load = () => getCommercialItems(project.id).then(({ data }) => setItems(data.filter(i => i.type === category.key)));
   useEffect(() => { load(); }, [project.id, category.key]);
+
+  // AI: read the attached document and pre-fill the form for review
+  const autoFill = async () => {
+    if (!form.file_url) return;
+    setExtracting(true); setExtractMsg(null);
+    const { data, error } = await extractReceipt(form.file_url);
+    setExtracting(false);
+    if (error) { setExtractMsg(`Couldn't read it: ${error.message}`); return; }
+    if (!data) { setExtractMsg("Nothing could be extracted — fill manually."); return; }
+    setForm(f => ({
+      ...f,
+      vendor: data.vendor || f.vendor,
+      amount: data.amount != null ? String(data.amount) : f.amount,
+      ref: data.ref || f.ref,
+      title: f.title || data.description || data.vendor || f.title,
+      description: data.description || f.description,
+    }));
+    setExtractMsg("✨ Filled from document — please check the numbers before saving.");
+  };
 
   const save = async () => {
     if (!form.title.trim()) return;
@@ -93,10 +115,18 @@ function CategoryList({ project, user, category, onBack }) {
               ))}
             </div>
             <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Notes (optional)" rows={2} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-              <FileUploadButton folder={`commercial/${project.id}/${category.key}`} accept="application/pdf,image/*" label="📎 Attach file" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
-              <FileUploadButton folder={`commercial/${project.id}/${category.key}`} accept="image/*" capture="environment" label="📷 Snap receipt" color="#a855f7" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
-              {form.file_url && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ attached</span>}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <FileUploadButton folder={`commercial/${project.id}/${category.key}`} accept="application/pdf,image/*" label="📎 Attach file" onUploaded={(url) => { setForm(f => ({ ...f, file_url: url })); setExtractMsg(null); }} />
+                <FileUploadButton folder={`commercial/${project.id}/${category.key}`} accept="image/*" capture="environment" label="📷 Snap receipt" color="#a855f7" onUploaded={(url) => { setForm(f => ({ ...f, file_url: url })); setExtractMsg(null); }} />
+                {form.file_url && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ attached</span>}
+              </div>
+              {form.file_url && (
+                <button onClick={autoFill} disabled={extracting} style={{ marginTop: 8, padding: "9px 14px", borderRadius: 8, border: "1px solid #e07b3955", background: extracting ? "#1a1a1a" : "#2a1800", color: extracting ? "#888" : "#e07b39", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, letterSpacing: 0.3, cursor: extracting ? "wait" : "pointer", width: "100%" }}>
+                  {extracting ? "✨ READING DOCUMENT…" : "✨ AUTO-FILL FROM DOCUMENT"}
+                </button>
+              )}
+              {extractMsg && <div style={{ fontSize: 12, color: extractMsg.startsWith("✨") ? "#22c55e" : "#f59e0b", marginTop: 8 }}>{extractMsg}</div>}
             </div>
             <button onClick={save} disabled={saving || !form.title.trim()} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: form.title.trim() ? category.accent : "#222", color: form.title.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: form.title.trim() ? "pointer" : "not-allowed" }}>{saving ? "SAVING..." : "SAVE"}</button>
           </div>
