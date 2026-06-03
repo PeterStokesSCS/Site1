@@ -379,6 +379,33 @@ export async function updatePhotoCaption(id, caption) {
   return { error };
 }
 
+// Photos attached to a specific record (issue, task, hazard, daily log, etc.)
+export async function getPhotosForRecord(recordType, recordId) {
+  const { data, error } = await supabase
+    .from("project_photos")
+    .select("*, taken_by:profiles(full_name)")
+    .eq("linked_record_type", recordType)
+    .eq("linked_record_id", recordId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function setPhotoClientVisible(id, value) {
+  const { error } = await supabase.from("project_photos").update({ client_visible: value }).eq("id", id);
+  return { error };
+}
+
+// Client-facing gallery — only photos explicitly marked visible to the client
+export async function getClientPhotos(projectId) {
+  const { data, error } = await supabase
+    .from("project_photos")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("client_visible", true)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
 // ── Milestones ─────────────────────────────────────────────────────────────────
 export async function getMilestones(projectId) {
   const { data, error } = await supabase

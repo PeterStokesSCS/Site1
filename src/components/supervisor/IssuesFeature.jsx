@@ -5,6 +5,7 @@ import { getIssues, createIssue, createHazard, getProfiles } from "../../lib/db"
 import { supabase } from "../../lib/supabase";
 import { post } from "../../lib/webhook";
 import { ISSUE_CATEGORIES } from "../../data/mockData";
+import PhotoAttach from "../shared/PhotoAttach";
 
 const PRIORITY = {
   critical: { color: "#ef4444", bg: "#2a0c0c", label: "CRITICAL" },
@@ -104,6 +105,11 @@ function IssueDetail({ issue: initial, user, onBack }) {
             )}
           </div>
         )}
+
+        {/* Photos */}
+        <div style={{ marginBottom: 20 }}>
+          <PhotoAttach project={{ id: issue.project_id }} user={user} recordType="issue" recordId={issue.id} accent="#f97316" />
+        </div>
 
         {/* Comments */}
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Comments</div>

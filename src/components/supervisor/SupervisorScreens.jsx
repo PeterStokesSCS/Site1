@@ -8,6 +8,7 @@ import {
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
+import PhotoAttach from "../shared/PhotoAttach";
 
 // Local YYYY-MM-DD (not UTC) so "today" matches the supervisor's actual day
 function localDateStr(d = new Date()) {
@@ -214,7 +215,14 @@ export function DailyLogScreen({ project, user, onBack }) {
               <button onClick={() => setExpanded(expanded === log.id ? null : log.id)} style={{ marginTop: 8, background: "none", border: "none", color: "#0ea5e9", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 0.3 }}>
                 {expanded === log.id ? "▾ Hide attendance" : "▸ Who was on site"}
               </button>
-              {expanded === log.id && <LogAttendance projectId={project.id} dateStr={log.log_date} />}
+              {expanded === log.id && (
+                <>
+                  <LogAttendance projectId={project.id} dateStr={log.log_date} />
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #1e1e1e" }}>
+                    <PhotoAttach project={project} user={user} recordType="daily_log" recordId={log.id} accent="#14b8a6" />
+                  </div>
+                </>
+              )}
             </div>
           ))
       }

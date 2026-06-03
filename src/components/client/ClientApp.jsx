@@ -3,8 +3,39 @@ import AppTile from "../shared/AppTile";
 import BackHeader from "../shared/BackHeader";
 import { EmptyState, Skeleton, CardSkeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
-import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations } from "../../lib/db";
+import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
+
+// Client progress gallery — only photos the team marked visible to the client
+function ClientPhotosScreen({ project, onBack }) {
+  const [photos, setPhotos] = useState(null);
+  const [view, setView] = useState(null);
+  useEffect(() => { getClientPhotos(project.id).then(({ data }) => setPhotos(data)); }, [project.id]);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Progress Photos" subtitle={project.street} onBack={onBack} />
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+        {photos === null ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4 }}>{[1,2,3,4,5,6].map(i => <div key={i} style={{ aspectRatio: "1", background: "#141414", borderRadius: 8 }} />)}</div>
+          : photos.length === 0 ? <EmptyState icon="📷" title="No photos yet" subtitle="Progress photos shared by your builder will appear here" />
+          : <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4 }}>
+              {photos.map(p => (
+                <button key={p.id} onClick={() => setView(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#141414" }}>
+                  <img src={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                </button>
+              ))}
+            </div>
+        }
+      </div>
+      {view && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column" }} onClick={() => setView(null)}>
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: 14 }}><button onClick={() => setView(null)} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 20, width: 40, height: 40 }}>✕</button></div>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px" }}><img src={view.url} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} /></div>
+          {view.caption && <div style={{ padding: 16, color: "#ccc", fontSize: 14, textAlign: "center" }}>{view.caption}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Milestone bar ──────────────────────────────────────────────────────────────
 function MilestoneBar({ milestones }) {
@@ -201,7 +232,7 @@ export default function ClientApp({ user }) {
       case "documents":  return <DocumentsScreen {...props} />;
       case "variations": return <VariationsScreen {...props} />;
       case "schedule":   return <SoonScreen title="Schedule" icon="📅" {...props} />;
-      case "photos":     return <SoonScreen title="Photos" icon="📷" {...props} />;
+      case "photos":     return <ClientPhotosScreen {...props} />;
       case "invoices":   return <SoonScreen title="Invoices" icon="💳" {...props} />;
       default: break;
     }

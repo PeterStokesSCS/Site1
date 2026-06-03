@@ -4,6 +4,7 @@ import { Skeleton, EmptyState } from "../shared/LoadingScreen";
 import { getTasksByProject, updateTaskStatus, createTask, getProfiles } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
 import { post } from "../../lib/webhook";
+import PhotoAttach from "../shared/PhotoAttach";
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
@@ -160,6 +161,11 @@ function TaskDetail({ task: initial, user, onBack }) {
             <div style={{ fontSize: 14, color: "#888", lineHeight: 1.6 }}>{task.description}</div>
           </div>
         )}
+
+        {/* Photos */}
+        <div style={{ marginBottom: 20 }}>
+          <PhotoAttach project={{ id: task.project_id }} user={user} recordType="task" recordId={task.id} accent="#f59e0b" />
+        </div>
 
         {/* Comments */}
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Comments</div>
