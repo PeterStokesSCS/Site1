@@ -51,6 +51,33 @@ alter table variations add column if not exists client_approved boolean default 
 alter table variations add column if not exists client_signature text;
 alter table variations add column if not exists approval_date timestamptz;
 alter table variations add column if not exists revision_history jsonb default '[]';
+-- Variation workflow (Alpha Rev 06): line items, GST, EOT, internal cost/margin,
+-- instruction evidence, audit trail, signature metadata, revision control.
+alter table variations add column if not exists reason text;
+alter table variations add column if not exists line_items jsonb default '[]';
+alter table variations add column if not exists subtotal numeric;
+alter table variations add column if not exists gst_amount numeric;
+alter table variations add column if not exists total_inc_gst numeric;
+alter table variations add column if not exists builder_cost numeric;
+alter table variations add column if not exists margin_amount numeric;
+alter table variations add column if not exists client_total numeric;
+alter table variations add column if not exists eot boolean default false;
+alter table variations add column if not exists eot_days int;
+alter table variations add column if not exists eot_description text;
+alter table variations add column if not exists instruction_note text;
+alter table variations add column if not exists audit_trail jsonb default '[]';
+alter table variations add column if not exists signature_image text;
+alter table variations add column if not exists approval_ip text;
+alter table variations add column if not exists approval_device text;
+alter table variations add column if not exists approved_version text;
+alter table variations add column if not exists approval_statement_accepted boolean default false;
+alter table variations add column if not exists signed_pdf_url text;
+alter table variations add column if not exists revision_label text;
+alter table variations add column if not exists supersedes_id uuid;
+alter table variations add column if not exists superseded_by_id uuid;
+alter table variations add column if not exists contract_total_snapshot numeric;
+alter table variations add column if not exists sent_at timestamptz;
+alter table variations add column if not exists viewed_by_client_at timestamptz;
 
 -- ── PROJECT_PHOTOS — linking, client flag, GPS, metadata ────────
 alter table project_photos add column if not exists category text;

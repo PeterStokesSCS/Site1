@@ -284,6 +284,11 @@ export async function updateVariation(id, patch) {
   return { data, error };
 }
 
+export async function deleteVariation(id) {
+  const { error } = await supabase.from("variations").delete().eq("id", id);
+  return { error };
+}
+
 // ── Messages ───────────────────────────────────────────────────────────────────
 export async function getMessages(projectId, channel) {
   const query = supabase

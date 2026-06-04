@@ -171,10 +171,11 @@ function SignOffModal({ variation, user, onClose, onDone }) {
           <div style={{ fontSize: 17, color: "#f0f0f0", margin: "4px 0 10px" }}>{v.title}</div>
           {v.description && <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.5, marginBottom: 12 }}>{v.description}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #222", paddingTop: 12 }}>
-            <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", fontFamily: "Barlow Condensed, sans-serif" }}>Cost impact</span>
-            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, color: "#e07b39" }}>{v.amount ? `$${v.amount.toLocaleString()}` : "TBC"}</span>
+            <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", fontFamily: "Barlow Condensed, sans-serif" }}>Cost impact{(v.total_inc_gst ?? v.amount) != null ? " (inc GST)" : ""}</span>
+            <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, color: "#e07b39" }}>{(v.total_inc_gst ?? v.amount) != null ? `$${Number(v.total_inc_gst ?? v.amount).toLocaleString()}` : "TBC"}</span>
           </div>
-          {v.file_url && <a href={v.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>📎 View attached document</a>}
+          {v.eot && <div style={{ fontSize: 12, color: "#f59e0b", marginTop: 10 }}>⏱ Includes an extension of time of {v.eot_days || "?"} day{v.eot_days === 1 ? "" : "s"}.</div>}
+          {(v.attachments?.[0] || v.file_url) && <a href={v.attachments?.[0] || v.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>📎 View attached document</a>}
         </div>
 
         <div style={{ fontSize: 12, color: "#777", lineHeight: 1.5, marginBottom: 12 }}>
@@ -235,7 +236,7 @@ function VariationsScreen({ project, user, onBack }) {
                     {v.description && <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{v.description}</div>}
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, color: "#e07b39" }}>{v.amount ? `$${v.amount.toLocaleString()}` : "TBC"}</div>
+                    <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, color: "#e07b39" }}>{(v.total_inc_gst ?? v.amount) != null ? `$${Number(v.total_inc_gst ?? v.amount).toLocaleString()}` : "TBC"}</div>
                     <div style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: v.status === "approved" ? "#22c55e" : v.status === "rejected" ? "#ef4444" : awaiting ? "#0ea5e9" : "#f59e0b", marginTop: 3 }}>{awaiting ? "AWAITING YOUR SIGN-OFF" : v.status?.toUpperCase()}</div>
                   </div>
                 </div>

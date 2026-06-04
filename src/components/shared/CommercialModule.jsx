@@ -3,7 +3,8 @@ import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
 import { extractReceipt } from "../../lib/ai";
-import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations, createVariation, updateVariationStatus, updateVariation } from "../../lib/db";
+import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations } from "../../lib/db";
+import VariationsList from "./VariationsModule";
 
 function AttachLink({ url }) {
   if (!url) return null;
@@ -167,114 +168,6 @@ function CategoryList({ project, user, category, onBack }) {
   );
 }
 
-// ── Variations category (own table + client sign-off placeholder) ──────────────
-function VariationsList({ project, user, onBack }) {
-  const [vars, setVars] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", amount: "", description: "", file_url: "" });
-  const [saving, setSaving] = useState(false);
-
-  const load = () => getVariations(project.id).then(({ data }) => setVars(data));
-  useEffect(() => { load(); }, [project.id]);
-
-  const save = async () => {
-    if (!form.title.trim()) return;
-    setSaving(true);
-    const ref = `${project.job_number || "VAR"}-V${String((vars?.length || 0) + 1).padStart(2, "0")}`;
-    const { data } = await createVariation({
-      project_id: project.id, ref, title: form.title.trim(),
-      description: form.description.trim() || null, amount: parseFloat(form.amount) || null,
-      status: "pending", raised_by: user.id, file_url: form.file_url || null,
-    });
-    if (data) setVars(prev => [data, ...prev]);
-    setForm({ title: "", amount: "", description: "", file_url: "" });
-    setShowForm(false);
-    setSaving(false);
-  };
-
-  const setStatus = async (id, status) => {
-    setVars(prev => prev.map(v => v.id === id ? { ...v, status } : v));
-    await updateVariationStatus(id, status, status === "approved" ? user.id : null);
-  };
-
-  // Issue a variation to the client for digital sign-off.
-  const issue = async (v) => {
-    const history = [...(v.revision_history || []), { action: "issued", by: user.id, at: new Date().toISOString() }];
-    setVars(prev => prev.map(x => x.id === v.id ? { ...x, status: "sent", revision_history: history } : x));
-    await updateVariation(v.id, { status: "sent", revision_history: history });
-  };
-
-  const approved = (vars || []).filter(v => v.status === "approved").reduce((s, v) => s + (v.amount || 0), 0);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
-      <BackHeader title="Variations" subtitle={project.street} onBack={onBack}
-        rightSlot={<button onClick={() => setShowForm(s => !s)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: showForm ? "#333" : "#6366f1", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{showForm ? "CANCEL" : "+ RAISE"}</button>}
-      />
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {showForm && (
-          <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 14, marginBottom: 14 }}>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Variation scope *" style={{ ...inp, marginBottom: 10 }} />
-            <input value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="Cost impact $" type="number" style={{ ...inp, marginBottom: 10 }} />
-            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Detailed scope description" rows={3} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
-              <FileUploadButton folder={`variations/${project.id}`} accept="application/pdf,image/*" label="📎 Attach" color="#6366f1" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
-              <FileUploadButton folder={`variations/${project.id}`} accept="image/*" capture="environment" label="📷 Photo" color="#a855f7" onUploaded={(url) => setForm(f => ({ ...f, file_url: url }))} />
-              {form.file_url && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ attached</span>}
-            </div>
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 10 }}>Once raised, send it to the client for digital sign-off.</div>
-            <button onClick={save} disabled={saving || !form.title.trim()} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: form.title.trim() ? "#6366f1" : "#222", color: form.title.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: form.title.trim() ? "pointer" : "not-allowed" }}>{saving ? "SAVING..." : "RAISE VARIATION"}</button>
-          </div>
-        )}
-        {vars === null ? [1,2].map(i => <div key={i} style={{ height: 70, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
-          : vars.length === 0 ? <EmptyState icon="±" title="No variations yet" subtitle="Raise one before the work proceeds" />
-          : (
-            <>
-              {approved > 0 && <div style={{ fontSize: 13, color: "#555", marginBottom: 12 }}>Approved variations: <span style={{ color: "#22c55e", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16 }}>{money(approved)}</span></div>}
-              {vars.map(v => (
-                <div key={v.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{v.ref}</div>
-                      <div style={{ fontSize: 14, color: "#ccc", marginTop: 2 }}>{v.title}</div>
-                      {v.description && <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>{v.description}</div>}
-                      {v.file_url && <AttachLink url={v.file_url} />}
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: "#e07b39" }}>{money(v.amount)}</div>
-                      <div style={{ marginTop: 4 }}><StatusBadge status={v.status} /></div>
-                    </div>
-                  </div>
-                  {/* Digital sign-off record (legal layer) */}
-                  {v.client_approved && (
-                    <div style={{ marginTop: 10, background: "#06200e", border: "1px solid #22c55e44", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#9ae6b4" }}>
-                      ✓ Signed by <b>{v.client_signature}</b>{v.approval_date ? ` · ${new Date(v.approval_date).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}
-                    </div>
-                  )}
-                  {v.status === "rejected" && v.client_signature && !v.client_approved && (
-                    <div style={{ marginTop: 10, background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#f0a0a0" }}>
-                      ✕ Declined by <b>{v.client_signature}</b>{v.approval_date ? ` · ${new Date(v.approval_date).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    {(v.status === "pending" || v.status === "draft") && (
-                      <button onClick={() => issue(v)} style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "#0ea5e9", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, cursor: "pointer", textTransform: "uppercase" }}>✍ Send to client for sign-off</button>
-                    )}
-                    {v.status === "sent" && (
-                      <span style={{ fontSize: 11, color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif", padding: "6px 0" }}>Awaiting client sign-off…</span>
-                    )}
-                    {["pending","approved","rejected"].filter(s => s !== v.status).map(s => (
-                      <button key={s} onClick={() => setStatus(v.id, s)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: STATUS[s]?.color || "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, cursor: "pointer", textTransform: "uppercase" }}>→ {STATUS[s]?.label || s}</button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
-      </div>
-    </div>
-  );
-}
 
 // ── Cost Tracking rollup ───────────────────────────────────────────────────────
 function CostTracking({ project, onBack }) {
