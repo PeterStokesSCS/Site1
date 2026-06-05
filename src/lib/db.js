@@ -437,6 +437,35 @@ export async function getMilestones(projectId) {
   return { data: data || [], error };
 }
 
+// ── Subbie variation requests ──────────────────────────────────────────────────
+export async function createSubbieRequest(payload) {
+  const { data, error } = await supabase.from("subbie_requests").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function getMySubbieRequests(userId) {
+  const { data, error } = await supabase
+    .from("subbie_requests")
+    .select("*, project:projects(job_number, street)")
+    .eq("submitted_by", userId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function getSubbieRequests(projectId) {
+  const { data, error } = await supabase
+    .from("subbie_requests")
+    .select("*, submitted_by:profiles(full_name, company)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function updateSubbieRequest(id, patch) {
+  const { data, error } = await supabase.from("subbie_requests").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
 // ── Users ──────────────────────────────────────────────────────────────────────
 export async function getProfiles() {
   const { data, error } = await supabase

@@ -233,5 +233,50 @@ alter table profile_credentials enable row level security;
 drop policy if exists "credentials_all" on profile_credentials;
 create policy "credentials_all" on profile_credentials for all to authenticated using (true);
 
+-- ── SUBBIE VARIATION REQUESTS (AI-assisted intake) ──────────────
+create table if not exists subbie_requests (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references projects on delete cascade,
+  submitted_by uuid references profiles,
+  trade text, note text, file_url text,
+  ai_extracted jsonb, ai_flags text[],
+  status text default 'submitted',   -- submitted / converted / approved / rejected
+  rejection_reason text,
+  linked_variation_id uuid references variations,
+  created_at timestamptz default now()
+);
+alter table subbie_requests enable row level security;
+drop policy if exists "subbie_requests_all" on subbie_requests;
+create policy "subbie_requests_all" on subbie_requests for all to authenticated using (true);
+
+-- ── PURCHASE ORDERS (issued to subbies on client-approved variations) ──
+create table if not exists purchase_orders (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references projects on delete cascade,
+  variation_id uuid references variations,
+  subbie_id uuid references profiles,
+  po_number text, trade text, scope text,
+  eot boolean default false, eot_days int, eot_description text,
+  po_value numeric, gst_treatment text default '10%',
+  status text default 'issued',      -- issued / accepted
+  accepted_at timestamptz, signature text,
+  created_by uuid references profiles, created_at timestamptz default now()
+);
+alter table purchase_orders enable row level security;
+drop policy if exists "purchase_orders_all" on purchase_orders;
+create policy "purchase_orders_all" on purchase_orders for all to authenticated using (true);
+
+-- ── PO MESSAGES (per-PO thread, builder ↔ subbie) ───────────────
+create table if not exists po_messages (
+  id uuid primary key default gen_random_uuid(),
+  po_id uuid references purchase_orders on delete cascade,
+  sender_id uuid references profiles,
+  content text not null,
+  created_at timestamptz default now()
+);
+alter table po_messages enable row level security;
+drop policy if exists "po_messages_all" on po_messages;
+create policy "po_messages_all" on po_messages for all to authenticated using (true);
+
 -- ── Refresh the API schema cache ────────────────────────────────
 notify pgrst, 'reload schema';
