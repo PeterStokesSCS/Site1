@@ -3,7 +3,7 @@ import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
 import letterheadUrl from "../../assets/letterhead.png";
-import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles } from "../../lib/db";
+import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles, getSubbieRequests, updateSubbieRequest } from "../../lib/db";
 import { uploadFile } from "../../lib/storage";
 import { post } from "../../lib/webhook";
 import { downloadPdf, generatePdfBlob } from "../../lib/variationPdf";
@@ -105,13 +105,17 @@ function LineRow({ li, onChange, onRemove, canSeeMargin }) {
 }
 
 // ── Create / edit form ─────────────────────────────────────────────────────────
-function VariationForm({ project, user, existing, vars, onSaved, onCancel, canSeeMargin }) {
+function VariationForm({ project, user, existing, initial, vars, onSaved, onCancel, canSeeMargin }) {
   const [form, setForm] = useState(() => existing ? {
     title: existing.title || "", reason: existing.reason || "", description: existing.description || "",
     lines: (existing.line_items?.length ? existing.line_items : [emptyLine()]),
     eot: !!existing.eot, eot_days: existing.eot_days || "", eot_description: existing.eot_description || "",
     instruction_note: existing.instruction_note || "", attachments: existing.attachments || [],
-  } : { title: "", reason: "", description: "", lines: [emptyLine()], eot: false, eot_days: "", eot_description: "", instruction_note: "", attachments: [] });
+  } : {
+    title: initial?.title || "", reason: initial?.reason || "", description: initial?.description || "",
+    lines: [emptyLine()], eot: false, eot_days: "", eot_description: "",
+    instruction_note: initial?.instruction_note || "", attachments: initial?.attachments || [],
+  });
   const [saving, setSaving] = useState(false);
 
   const totals = computeTotals(form.lines);
@@ -448,12 +452,31 @@ export default function VariationsList({ project, user, onBack }) {
   const canSeeMargin = user.role === "builder" || user.role === "office";
 
   const [nameMap, setNameMap] = useState({});
+  const [subReqs, setSubReqs] = useState([]);     // incoming subbie variation requests
+  const [convertReq, setConvertReq] = useState(null); // request being converted to a draft
+  const [rejectReq, setRejectReq] = useState(null);   // request id pending rejection
+  const [rejectReason, setRejectReason] = useState("");
 
   const load = () => getVariations(project.id).then(({ data }) => setVars(data));
+  const loadReqs = () => getSubbieRequests(project.id).then(({ data }) => setSubReqs((data || []).filter(r => r.status === "submitted")));
   useEffect(() => {
     load();
+    loadReqs();
     getProfiles().then(({ data }) => setNameMap(Object.fromEntries((data || []).map(p => [p.id, p.full_name || "Staff"]))));
   }, [project.id]);
+
+  // Convert a subbie request into a pre-filled draft variation, linking the two.
+  const onConvertSaved = async (v, isNew, req) => {
+    onSaved(v, isNew);
+    setConvertReq(null);
+    await updateSubbieRequest(req.id, { status: "converted", linked_variation_id: v.id });
+    setSubReqs(prev => prev.filter(r => r.id !== req.id));
+  };
+  const doReject = async (req) => {
+    await updateSubbieRequest(req.id, { status: "rejected", rejection_reason: rejectReason.trim() || "Not approved" });
+    setSubReqs(prev => prev.filter(r => r.id !== req.id));
+    setRejectReq(null); setRejectReason("");
+  };
 
   const onSaved = (v, isNew) => {
     setVars(prev => isNew ? [v, ...(prev || [])] : prev.map(x => x.id === v.id ? { ...x, ...v } : x));
@@ -504,6 +527,20 @@ export default function VariationsList({ project, user, onBack }) {
       onBack={() => setPreview(null)} onEdit={(v) => { setPreview(null); setEditing(v); }} onPatch={patchVar} onRevise={revise} />;
   }
 
+  if (convertReq) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+        <BackHeader title="Convert request" subtitle={`From ${convertReq.submitted_by?.full_name || "subcontractor"}`} onBack={() => setConvertReq(null)} />
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+          {convertReq.file_url && <a href={convertReq.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginBottom: 12, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>📎 View original submission</a>}
+          <VariationForm project={project} user={user} vars={vars || []} canSeeMargin={canSeeMargin}
+            initial={{ description: convertReq.note || "", reason: convertReq.trade ? `Subcontractor request — ${convertReq.trade}` : "Subcontractor request" }}
+            onSaved={(v, isNew) => onConvertSaved(v, isNew, convertReq)} onCancel={() => setConvertReq(null)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <BackHeader title="Variations" subtitle={project.street} onBack={onBack}
@@ -512,6 +549,32 @@ export default function VariationsList({ project, user, onBack }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
         {editing === "new" && <VariationForm project={project} user={user} vars={vars || []} onSaved={onSaved} onCancel={() => setEditing(null)} canSeeMargin={canSeeMargin} />}
         {editing && editing !== "new" && <VariationForm project={project} user={user} existing={editing} vars={vars || []} onSaved={onSaved} onCancel={() => setEditing(null)} canSeeMargin={canSeeMargin} />}
+
+        {/* Incoming subbie variation requests */}
+        {canCreate && !editing && subReqs.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "#0ea5e9", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 8 }}>📨 Subbie requests ({subReqs.length})</div>
+            {subReqs.map(r => (
+              <div key={r.id} style={{ background: "#0c1822", border: "1px solid #0ea5e944", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#7aa7d9", fontFamily: "Barlow Condensed, sans-serif" }}>{r.submitted_by?.full_name || "Subcontractor"}{r.submitted_by?.company ? ` · ${r.submitted_by.company}` : ""}{r.trade ? ` · ${r.trade}` : ""}</div>
+                <div style={{ fontSize: 13, color: "#ccc", marginTop: 4 }}>{r.note || "(attached file)"}</div>
+                {r.file_url && <a href={r.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>📎 View submission</a>}
+                {rejectReq === r.id ? (
+                  <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+                    <input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason (shown to subbie)" style={{ ...inp, flex: 1 }} />
+                    <button onClick={() => doReject(r)} style={btn("#ef4444", true)}>Reject</button>
+                    <button onClick={() => { setRejectReq(null); setRejectReason(""); }} style={btn("#888")}>Cancel</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                    <button onClick={() => setConvertReq(r)} style={btn("#22c55e", true)}>→ Create draft variation</button>
+                    <button onClick={() => setRejectReq(r.id)} style={btn("#ef4444")}>Reject</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {vars === null ? [1, 2].map(i => <div key={i} style={{ height: 80, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
           : vars.length === 0 && !editing ? <EmptyState icon="±" title="No variations yet" subtitle={canCreate ? "Raise one before the work proceeds" : "Variations are managed by the builder"} />
