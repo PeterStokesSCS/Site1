@@ -36,9 +36,11 @@ export async function flushQueue() {
 
 export async function post(path, payload, offline = true) {
   if (!WEBHOOK_BASE) {
-    console.info("[webhook] no WEBHOOK_BASE set, skipping:", path, payload);
+    console.info("[webhook] WEBHOOK_BASE not configured — skipping event:", path);
     return;
   }
+  // Surface successful wiring in the console for diagnostics.
+  if (typeof window !== "undefined") console.debug("[webhook] →", `${WEBHOOK_BASE}${path}`);
   try {
     const res = await fetch(`${WEBHOOK_BASE}${path}`, {
       method: "POST",
