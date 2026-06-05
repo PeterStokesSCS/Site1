@@ -6,9 +6,10 @@ import { HEALTH } from "../../lib/theme";
 import TasksFeature from "../supervisor/TasksFeature";
 import IssuesFeature from "../supervisor/IssuesFeature";
 import OnSiteFeature from "../supervisor/OnSiteFeature";
-import { SafetyScreen, DailyLogScreen, VariationsScreen, ChatScreen } from "../supervisor/SupervisorScreens";
+import { SafetyScreen, DailyLogScreen, ChatScreen } from "../supervisor/SupervisorScreens";
 import OverviewScreen from "./OverviewScreen";
 import CommercialModule from "./CommercialModule";
+import VariationsList from "./VariationsModule";
 import PhotosScreen from "./PhotosScreen";
 import ProjectDocsScreen from "./ProjectDocsScreen";
 
@@ -69,7 +70,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "attendance":    return <OnSiteFeature {...props} />;
       case "safety":        return <SafetyScreen {...props} />;
       case "dailyLog":      return <DailyLogScreen {...props} />;
-      case "variations":    return <VariationsScreen {...props} />;
+      case "variations":    return <VariationsList {...props} />;
       case "communication": return <ChatScreen {...props} />;
       case "overview":      return <OverviewScreen {...props} onNav={setScreen} />;
       case "plans":         return <ProjectDocsScreen {...props} />;

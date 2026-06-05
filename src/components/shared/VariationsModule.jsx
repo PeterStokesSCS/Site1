@@ -2,19 +2,24 @@ import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
+import letterheadUrl from "../../assets/letterhead.png";
 import { getVariations, createVariation, updateVariation, deleteVariation } from "../../lib/db";
 import { emptyLine, lineClient, lineCost, computeTotals, money, nextRef, pushAudit, approvedVariationsTotal } from "../../lib/variationCalc";
+
+// Legal acceptance wording (have solicitor confirm before go-live).
+export const LEGAL_ACCEPTANCE = "Please review and approve this variation if you wish to confirm the adjustment to your original scope of works. Under the terms of your building contract, this variation constitutes a formal change to the agreed scope and contract sum. By approving, you acknowledge the adjustment to the construction program and agree that the variation amount will be invoiced upon approval or included in a subsequent progress claim. Prompt approval is appreciated to avoid delays to the project program. This variation has been issued in accordance with the Domestic Building Contracts Act 1995 (Vic).";
 
 const inp = { width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box" };
 const lbl = { fontSize: 11, color: "#777", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 5, display: "block" };
 
 const STATUS = {
-  draft:    { label: "Draft",             color: "#888",    bg: "#1a1a1a" },
-  pending:  { label: "Pending Approval",  color: "#f59e0b", bg: "#251d00" },
-  sent:     { label: "Awaiting Sign-off", color: "#0ea5e9", bg: "#0c2233" },
-  approved: { label: "Approved",          color: "#22c55e", bg: "#06200e" },
-  rejected: { label: "Rejected",          color: "#ef4444", bg: "#2a0c0c" },
-  superseded:{ label: "Superseded",       color: "#888",    bg: "#1a1a1a" },
+  draft:             { label: "Draft",             color: "#888",    bg: "#1a1a1a" },
+  pending:           { label: "Pending Approval",  color: "#f59e0b", bg: "#251d00" },
+  approved_for_issue:{ label: "Approved for Issue",color: "#a855f7", bg: "#1a0c33" },
+  sent:              { label: "Awaiting Sign-off", color: "#0ea5e9", bg: "#0c2233" },
+  approved:          { label: "Approved",          color: "#22c55e", bg: "#06200e" },
+  rejected:          { label: "Rejected",          color: "#ef4444", bg: "#2a0c0c" },
+  superseded:        { label: "Superseded",        color: "#888",    bg: "#1a1a1a" },
 };
 function StatusBadge({ status }) {
   const s = STATUS[status] || STATUS.draft;
@@ -198,10 +203,141 @@ function Row({ l, v, bold, small, color }) {
   );
 }
 
+// ── Formatted variation document (matches the eventual PDF) ────────────────────
+const SECT = { fontSize: 11, color: "#e07b39", textTransform: "uppercase", letterSpacing: 0.6, fontFamily: "Barlow Condensed, sans-serif", margin: "16px 0 6px" };
+
+function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onBack, onEdit, onPatch }) {
+  const [busy, setBusy] = useState(false);
+  const t = (v.line_items?.length) ? computeTotals(v.line_items) : { subtotal: v.subtotal || 0, gst: v.gst_amount || 0, total: v.total_inc_gst ?? v.amount ?? 0 };
+  const original = project.budget || 0;
+  const approvedExcl = vars.filter(x => x.status === "approved" && x.id !== v.id).reduce((s, x) => s + (Number(x.total_inc_gst ?? x.amount) || 0), 0);
+  const revised = original + approvedExcl + t.total;
+  const s = STATUS[v.status] || STATUS.draft;
+  const locked = v.status === "approved";
+
+  const act = async (patch) => { setBusy(true); await onPatch(v, patch); setBusy(false); };
+  const approveForIssue = () => act({ status: "approved_for_issue", audit_trail: pushAudit(v.audit_trail, "approved_for_issue", user.id) });
+  const sendToClient = () => act({ status: "sent", sent_at: new Date().toISOString(), audit_trail: pushAudit(v.audit_trail, "sent_to_client", user.id), revision_history: pushAudit(v.revision_history, "issued", user.id) });
+  const revertDraft = () => act({ status: "draft", audit_trail: pushAudit(v.audit_trail, "reverted_to_draft", user.id) });
+
+  const labelStyle = { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title={v.ref || "Variation"} subtitle="Document preview" onBack={onBack} />
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* The document — white page, A4-ish, centred */}
+        <div style={{ maxWidth: 620, margin: "0 auto", padding: 12 }}>
+          <div style={{ background: "#fff", color: "#1c1c1c", borderRadius: 6, overflow: "hidden", fontFamily: "DM Sans, sans-serif" }}>
+            <img src={letterheadUrl} alt="Stokes Construction Services" style={{ width: "100%", display: "block" }} />
+            {/* Charcoal status bar */}
+            <div style={{ background: "#2c2c2c", color: "#fff", padding: "8px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 0.5, fontSize: 13 }}>Variation Notice · Stokes Construction Services</span>
+              <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: "#fff", background: s.color, padding: "3px 9px", borderRadius: 4 }}>{s.label}</span>
+            </div>
+
+            <div style={{ padding: "16px 20px 22px" }}>
+              {/* Project / client block */}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12 }}>
+                <div>
+                  <div style={labelStyle}>Project</div>
+                  <div style={{ fontWeight: 600 }}>{project.street}</div>
+                  <div style={{ marginTop: 6, ...labelStyle }}>Client</div>
+                  <div>{project.client_name || "—"}</div>
+                  {project.client_phone && <div style={{ color: "#555" }}>{project.client_phone}</div>}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={labelStyle}>Site address</div>
+                  <div>{[project.street, project.suburb].filter(Boolean).join(", ")}</div>
+                  <div style={{ marginTop: 6, ...labelStyle }}>Date issued</div>
+                  <div>{new Date(v.sent_at || v.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}</div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: "2px solid #2c2c2c", margin: "16px 0 10px" }} />
+              <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 700, color: "#1c1c1c" }}>{v.ref}{v.revision_label ? ` ${v.revision_label}` : ""}</div>
+              <div style={{ fontSize: 16, color: "#333", marginTop: 2 }}>{v.title}</div>
+
+              {v.description && (<><div style={SECT}>Description of works</div><div style={{ fontSize: 13, lineHeight: 1.5, color: "#333", whiteSpace: "pre-wrap" }}>{v.description}</div></>)}
+              {v.reason && (<><div style={SECT}>Reason for variation</div><div style={{ fontSize: 13, lineHeight: 1.5, color: "#333" }}>{v.reason}</div></>)}
+              {v.eot && (<><div style={SECT}>Extension of time</div><div style={{ fontSize: 13, color: "#333" }}>{v.eot_days || "?"} day{v.eot_days === 1 ? "" : "s"}{v.eot_description ? ` — ${v.eot_description}` : ""}</div></>)}
+
+              {/* Cost table */}
+              <div style={SECT}>Cost breakdown</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <tbody>
+                  {(v.line_items?.length ? v.line_items : [{ id: "x", description: v.title, client_amount: t.total, mode: "direct" }]).map(li => (
+                    <tr key={li.id} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={{ padding: "7px 4px", color: "#333" }}>{li.description || "—"}{li.gst_exempt ? " (GST exempt)" : ""}</td>
+                      <td style={{ padding: "7px 4px", textAlign: "right", color: "#333", whiteSpace: "nowrap" }}>{money(lineClient(li))}</td>
+                    </tr>
+                  ))}
+                  <tr><td style={{ padding: "7px 4px", textAlign: "right", color: "#666" }}>Subtotal</td><td style={{ padding: "7px 4px", textAlign: "right", color: "#333" }}>{money(t.subtotal)}</td></tr>
+                  <tr><td style={{ padding: "4px", textAlign: "right", color: "#666" }}>GST (10%)</td><td style={{ padding: "4px", textAlign: "right", color: "#333" }}>{money(t.gst)}</td></tr>
+                  <tr style={{ background: "#2c2c2c", color: "#fff" }}><td style={{ padding: "9px 8px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, letterSpacing: 0.5 }}>TOTAL VARIATION AMOUNT</td><td style={{ padding: "9px 8px", textAlign: "right", fontFamily: "Barlow Condensed, sans-serif", fontSize: 17 }}>{money(t.total)}</td></tr>
+                </tbody>
+              </table>
+
+              {/* Running contract sum */}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 10, fontSize: 12, background: "#f4f4f4", borderRadius: 6, padding: "10px 12px" }}>
+                <div><div style={labelStyle}>Original contract</div><div>{money(original)}</div></div>
+                <div><div style={labelStyle}>Approved to date</div><div>{money(approvedExcl)}</div></div>
+                <div style={{ textAlign: "right" }}><div style={labelStyle}>Revised total</div><div style={{ fontWeight: 700, color: "#1c1c1c" }}>{money(revised)}</div></div>
+              </div>
+
+              {v.attachments?.length > 0 && (<><div style={SECT}>Supporting documents</div>{v.attachments.map((u, i) => <div key={i} style={{ fontSize: 12, color: "#2563eb" }}><a href={u} target="_blank" rel="noreferrer" style={{ color: "#2563eb", textDecoration: "none" }}>📎 Attachment {i + 1}</a></div>)}</>)}
+
+              {/* Legal */}
+              <div style={{ fontSize: 11, color: "#555", lineHeight: 1.5, marginTop: 16, paddingTop: 12, borderTop: "1px solid #eee" }}>{LEGAL_ACCEPTANCE}</div>
+
+              {/* Signature block */}
+              <div style={SECT}>Client approval</div>
+              <div style={{ fontSize: 11, color: "#666", marginBottom: 10 }}>By signing below you confirm your acceptance of this variation, including the adjusted scope, cost, and time impact.</div>
+              <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
+                <div style={{ flex: 1 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26, color: "#1c1c1c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>{v.client_signature || ""}</div><div style={labelStyle}>Signature</div></div>
+                <div style={{ flex: 1 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26 }}>{v.client_signature || ""}</div><div style={labelStyle}>Full name</div></div>
+                <div style={{ width: 110 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26 }}>{v.approval_date ? new Date(v.approval_date).toLocaleDateString("en-AU") : ""}</div><div style={labelStyle}>Date</div></div>
+              </div>
+              {v.status === "approved" && <div style={{ marginTop: 10, fontSize: 11, color: "#16a34a", fontWeight: 600 }}>✓ Approved &amp; locked{v.approval_date ? ` — ${new Date(v.approval_date).toLocaleString("en-AU")}` : ""}</div>}
+
+              <div style={{ marginTop: 18, paddingTop: 10, borderTop: "1px solid #eee", display: "flex", justifyContent: "space-between", fontSize: 9, color: "#999", fontFamily: "Barlow Condensed, sans-serif" }}>
+                <span>Generated by SITE1 · Document ID: {v.ref}</span><span>ABN 31 607 685 870 · VBA CDB-U 73867</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Builder action bar */}
+      {!locked && (
+        <div style={{ display: "flex", gap: 8, padding: "12px 16px 22px", borderTop: "1px solid #1e1e1e", background: "#0c0c0c" }}>
+          {(v.status === "draft" || v.status === "pending") && <>
+            <button onClick={() => onEdit(v)} disabled={busy} style={pbtn("#3b82f6")}>✎ Edit Draft</button>
+            <button onClick={approveForIssue} disabled={busy} style={pbtn("#a855f7", true)}>✓ Approve for Issue</button>
+          </>}
+          {v.status === "approved_for_issue" && <>
+            <button onClick={revertDraft} disabled={busy} style={pbtn("#888")}>↩ Revert</button>
+            <button onClick={sendToClient} disabled={busy} style={pbtn("#0ea5e9", true)}>✍ Send to Client</button>
+          </>}
+          {v.status === "sent" && <>
+            <span style={{ flex: 1, alignSelf: "center", fontSize: 12, color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif" }}>Awaiting client sign-off…</span>
+            <button onClick={revertDraft} disabled={busy} style={pbtn("#888")}>↩ Recall to Draft</button>
+          </>}
+          {v.status === "rejected" && <button onClick={revertDraft} disabled={busy} style={pbtn("#3b82f6", true)}>↩ Revise (back to draft)</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+function pbtn(color, filled) {
+  return { flex: 1, padding: "12px", borderRadius: 10, border: filled ? "none" : `1px solid ${color}66`, background: filled ? color : "transparent", color: filled ? "#fff" : color, fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer", letterSpacing: 0.3 };
+}
+
 // ── Variations list (builder console) ──────────────────────────────────────────
 export default function VariationsList({ project, user, onBack }) {
   const [vars, setVars] = useState(null);
   const [editing, setEditing] = useState(null);   // variation being edited, or "new"
+  const [preview, setPreview] = useState(null);    // variation shown as formatted document
   const [confirmDel, setConfirmDel] = useState(null);
 
   const canCreate = user.role === "builder" || user.role === "office";
@@ -216,9 +352,10 @@ export default function VariationsList({ project, user, onBack }) {
     setEditing(null);
   };
 
-  const issue = async (v) => {
-    const patch = { status: "sent", sent_at: new Date().toISOString(), audit_trail: pushAudit(v.audit_trail, "sent_to_client", user.id), revision_history: pushAudit(v.revision_history, "issued", user.id) };
+  // Apply a status/field patch from the preview (and keep both list + preview in sync).
+  const patchVar = async (v, patch) => {
     setVars(prev => prev.map(x => x.id === v.id ? { ...x, ...patch } : x));
+    setPreview(p => (p && p.id === v.id ? { ...p, ...patch } : p));
     await updateVariation(v.id, patch);
   };
 
@@ -231,6 +368,11 @@ export default function VariationsList({ project, user, onBack }) {
   const approvedToDate = approvedVariationsTotal(vars || []);
   const revisedTotal = (project.budget || 0) + approvedToDate;
   const editable = (v) => v.status === "draft" || v.status === "pending";
+
+  if (preview) {
+    return <VariationPreview variation={preview} project={project} vars={vars || []} user={user} canSeeMargin={canSeeMargin}
+      onBack={() => setPreview(null)} onEdit={(v) => { setPreview(null); setEditing(v); }} onPatch={patchVar} />;
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
@@ -284,14 +426,15 @@ export default function VariationsList({ project, user, onBack }) {
 
                   {canCreate && (
                     <div style={{ display: "flex", gap: 6, marginTop: 12, flexWrap: "wrap" }}>
+                      <button onClick={() => setPreview(v)} style={btn("#a855f7", true)}>📄 Open document</button>
                       {editable(v) && <button onClick={() => setEditing(v)} style={btn("#3b82f6")}>✎ Edit</button>}
-                      {editable(v) && <button onClick={() => issue(v)} style={btn("#0ea5e9", true)}>✍ Send to client for sign-off</button>}
                       {editable(v) && (confirmDel === v.id
                         ? <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                             <button onClick={() => remove(v)} style={btn("#ef4444", true)}>Confirm delete</button>
                             <button onClick={() => setConfirmDel(null)} style={btn("#888")}>Cancel</button>
                           </span>
                         : <button onClick={() => setConfirmDel(v.id)} style={btn("#ef4444")}>🗑 Delete</button>)}
+                      {v.status === "approved_for_issue" && <span style={{ fontSize: 11, color: "#a855f7", fontFamily: "Barlow Condensed, sans-serif", padding: "6px 0" }}>Ready to send — open document</span>}
                       {v.status === "sent" && <span style={{ fontSize: 11, color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif", padding: "6px 0" }}>Awaiting client sign-off…</span>}
                     </div>
                   )}

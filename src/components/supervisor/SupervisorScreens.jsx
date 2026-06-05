@@ -4,7 +4,7 @@ import { EmptyState } from "../shared/LoadingScreen";
 import {
   getHazardsByProject, createHazard, resolveHazard,
   getDailyLogs, createDailyLog, getAttendanceForDay,
-  getVariations, getMessages, sendMessage, addPhoto,
+  getMessages, sendMessage, addPhoto,
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
@@ -225,53 +225,6 @@ export function DailyLogScreen({ project, user, onBack }) {
                   </div>
                 </>
               )}
-            </div>
-          ))
-      }
-    </Screen>
-  );
-}
-
-// ── Variations ─────────────────────────────────────────────────────────────────
-export function VariationsScreen({ project, onBack }) {
-  const [vars, setVars] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getVariations(project.id).then(({ data }) => { setVars(data); setLoading(false); });
-  }, [project.id]);
-
-  const approved = vars.filter(v => v.status === "approved").reduce((s, v) => s + (v.amount || 0), 0);
-  const pending  = vars.filter(v => v.status === "pending").length;
-
-  return (
-    <Screen title="Variations" subtitle={project.street} onBack={onBack}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, color: "#22c55e" }}>${approved.toLocaleString()}</div>
-          <div style={{ fontSize: 11, color: "#555" }}>Approved</div>
-        </div>
-        <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, color: "#f59e0b" }}>{pending}</div>
-          <div style={{ fontSize: 11, color: "#555" }}>Awaiting approval</div>
-        </div>
-      </div>
-      {loading ? [1,2].map(i => <div key={i} style={{ height: 80, background: "#141414", borderRadius: 10, marginBottom: 8 }} />) :
-        vars.length === 0
-          ? <EmptyState icon="±" title="No variations yet" subtitle="Variations will appear here when raised" />
-          : vars.map(v => (
-            <div key={v.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{v.ref}</div>
-                  <div style={{ fontSize: 14, color: "#ccc", marginTop: 2 }}>{v.title}</div>
-                  <div style={{ fontSize: 11, color: "#444", marginTop: 3 }}>{new Date(v.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</div>
-                </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, color: "#e07b39" }}>{v.amount ? `$${v.amount.toLocaleString()}` : "TBC"}</div>
-                  <div style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: v.status === "approved" ? "#22c55e" : "#f59e0b", marginTop: 4 }}>{v.status?.toUpperCase()}</div>
-                </div>
-              </div>
             </div>
           ))
       }

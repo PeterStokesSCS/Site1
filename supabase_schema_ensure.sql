@@ -43,6 +43,8 @@ alter table issues drop constraint if exists issues_priority_check;
 alter table hazards add column if not exists issue_id uuid references issues;
 
 -- ── VARIATIONS — attachments + client sign-off ──────────────────
+-- Workflow uses draft/approved_for_issue/sent/superseded beyond the base check.
+alter table variations drop constraint if exists variations_status_check;
 alter table variations add column if not exists ref text;
 alter table variations add column if not exists file_url text;
 alter table variations add column if not exists photos text[];

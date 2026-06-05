@@ -277,6 +277,7 @@ function SoonScreen({ title, project, onBack, icon }) {
 export default function ClientApp({ user }) {
   const [project, setProject] = useState(null);
   const [pendingVars, setPendingVars] = useState(0);
+  const [sentVars, setSentVars] = useState([]);
   const [screen, setScreen] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -292,7 +293,9 @@ export default function ClientApp({ user }) {
       setProject(p);
       if (p) {
         const { data: vs } = await getVariations(p.id);
-        setPendingVars(vs.filter(v => v.status === "sent").length);
+        const sent = vs.filter(v => v.status === "sent");
+        setSentVars(sent);
+        setPendingVars(sent.length);
       }
       setLoading(false);
     })();
@@ -372,6 +375,22 @@ export default function ClientApp({ user }) {
 
       {/* Tile grid */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 24px" }}>
+        {/* Variation awaiting approval — action-required alert */}
+        {sentVars.length > 0 && (
+          <button onClick={() => setScreen("variations")} style={{ width: "100%", textAlign: "left", background: "#0c2233", border: "1px solid #0ea5e9", borderRadius: 12, padding: "14px 16px", marginBottom: 14, cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>✍</span>
+              <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, color: "#0ea5e9", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                {sentVars.length === 1 ? "Variation awaiting your approval" : `${sentVars.length} variations awaiting your approval`}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: "#cbd5e1" }}>
+              {sentVars[0].ref ? `${sentVars[0].ref} — ` : ""}{sentVars[0].title}
+              {(sentVars[0].total_inc_gst ?? sentVars[0].amount) != null && <span style={{ color: "#e07b39", fontFamily: "Barlow Condensed, sans-serif", marginLeft: 6 }}>${Number(sentVars[0].total_inc_gst ?? sentVars[0].amount).toLocaleString()} inc GST</span>}
+            </div>
+            <div style={{ fontSize: 12, color: "#0ea5e9", marginTop: 8, fontFamily: "Barlow Condensed, sans-serif" }}>REVIEW &amp; SIGN →</div>
+          </button>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
           {TILE_GRID.map(tile => (
             <AppTile key={tile.key} {...tile} onClick={() => setScreen(tile.key)} />
