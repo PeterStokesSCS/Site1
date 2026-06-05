@@ -40,9 +40,12 @@ export async function post(path, payload, offline = true) {
     return;
   }
   try {
+    // text/plain is a CORS-safelisted content type, so the browser sends the POST
+    // directly without a preflight (these are fire-and-forget; we never read the
+    // response). The body is still JSON — n8n/webhook receivers parse it the same.
     const res = await fetch(`${WEBHOOK_BASE}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
