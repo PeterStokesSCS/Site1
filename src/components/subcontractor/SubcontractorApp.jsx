@@ -5,9 +5,10 @@ import AppTile from "../shared/AppTile";
 import OfflineBar from "../shared/OfflineBar";
 import FileUploadButton from "../shared/FileUploadButton";
 import PhotosScreen from "../shared/PhotosScreen";
+import letterheadUrl from "../../assets/letterhead.png";
 import { EmptyState, Skeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
-import { getProjects, getDocuments, createSubbieRequest, getMySubbieRequests } from "../../lib/db";
+import { getProjects, getDocuments, createSubbieRequest, getMySubbieRequests, getMyPurchaseOrders, updatePurchaseOrder, getPoMessages, sendPoMessage } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
 import { post, enqueue } from "../../lib/webhook";
 import { useOfflineQueue } from "../../hooks/useOfflineQueue";
@@ -218,6 +219,136 @@ function MyRequestsScreen({ user, onBack }) {
   );
 }
 
+const poMoney = (n) => (n || n === 0) ? `$${Number(n).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+
+// ── PO document + accept/sign + per-PO messaging ───────────────────────────────
+function PoDetailScreen({ po: initialPo, user, onBack }) {
+  const [po, setPo] = useState(initialPo);
+  const [name, setName] = useState(user.name || "");
+  const [msgs, setMsgs] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [accepting, setAccepting] = useState(false);
+  const value = Number(po.po_value) || 0;
+  const gst = Math.round(value * 0.1 * 100) / 100;
+
+  useEffect(() => { getPoMessages(po.id).then(({ data }) => setMsgs(data)); }, [po.id]);
+
+  const accept = async () => {
+    if (!name.trim() || accepting) return;
+    setAccepting(true);
+    const { data } = await updatePurchaseOrder(po.id, { status: "accepted", accepted_at: new Date().toISOString(), signature: name.trim() });
+    setAccepting(false);
+    if (data) setPo(p => ({ ...p, ...data }));
+  };
+
+  const send = async () => {
+    if (!draft.trim()) return;
+    const { data } = await sendPoMessage({ po_id: po.id, sender_id: user.id, content: draft.trim() });
+    if (data) setMsgs(prev => [...prev, data]);
+    setDraft("");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title={po.po_number || "Purchase Order"} subtitle={po.project?.street} onBack={onBack} />
+      <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* PO document */}
+        <div style={{ maxWidth: 560, margin: "0 auto", padding: 12 }}>
+          <div style={{ background: "#fff", color: "#1c1c1c", borderRadius: 6, overflow: "hidden", fontFamily: "DM Sans, sans-serif" }}>
+            <img src={letterheadUrl} alt="Stokes Construction Services" style={{ width: "100%", display: "block" }} />
+            <div style={{ background: "#2c2c2c", color: "#fff", padding: "8px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: "Barlow Condensed, sans-serif", letterSpacing: 0.5, fontSize: 13 }}>Purchase Order · Stokes Construction Services</span>
+              <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", color: "#fff", background: po.status === "accepted" ? "#16a34a" : "#f59e0b", padding: "3px 9px", borderRadius: 4 }}>{po.status}</span>
+            </div>
+            <div style={{ padding: "16px 20px 22px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                <div><div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>Project</div><div style={{ fontWeight: 600 }}>{po.project?.street}</div><div style={{ color: "#666" }}>{po.project?.job_number}</div></div>
+                <div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: "#888", textTransform: "uppercase" }}>PO number</div><div style={{ fontWeight: 600 }}>{po.po_number}</div><div style={{ color: "#666" }}>{new Date(po.created_at).toLocaleDateString("en-AU")}</div></div>
+              </div>
+              <div style={{ borderTop: "2px solid #2c2c2c", margin: "14px 0 10px" }} />
+              <div style={{ fontSize: 10, color: "#e07b39", textTransform: "uppercase", letterSpacing: 0.6, fontFamily: "Barlow Condensed, sans-serif" }}>Issued to</div>
+              <div style={{ fontSize: 14 }}>{name || "Subcontractor"}{po.trade ? ` · ${po.trade}` : ""}</div>
+              <div style={{ fontSize: 10, color: "#e07b39", textTransform: "uppercase", letterSpacing: 0.6, fontFamily: "Barlow Condensed, sans-serif", marginTop: 12 }}>Scope of works</div>
+              <div style={{ fontSize: 13, color: "#333", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{po.scope}</div>
+              {po.eot && <><div style={{ fontSize: 10, color: "#e07b39", textTransform: "uppercase", letterSpacing: 0.6, fontFamily: "Barlow Condensed, sans-serif", marginTop: 12 }}>Extension of time</div><div style={{ fontSize: 13, color: "#333" }}>{po.eot_days || "?"} day(s){po.eot_description ? ` — ${po.eot_description}` : ""}</div></>}
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginTop: 14 }}>
+                <tbody>
+                  <tr><td style={{ padding: "6px 4px", color: "#666", textAlign: "right" }}>PO value</td><td style={{ padding: "6px 4px", textAlign: "right" }}>{poMoney(value)}</td></tr>
+                  <tr><td style={{ padding: "4px", color: "#666", textAlign: "right" }}>GST (10%)</td><td style={{ padding: "4px", textAlign: "right" }}>{poMoney(gst)}</td></tr>
+                  <tr style={{ background: "#2c2c2c", color: "#fff" }}><td style={{ padding: "8px", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15 }}>TOTAL (INC GST)</td><td style={{ padding: "8px", textAlign: "right", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16 }}>{poMoney(value + gst)}</td></tr>
+                </tbody>
+              </table>
+              <div style={{ marginTop: 16, fontSize: 11, color: "#555" }}>Acceptance: {po.status === "accepted" ? <span style={{ color: "#16a34a", fontWeight: 600 }}>Accepted by {po.signature} on {new Date(po.accepted_at).toLocaleDateString("en-AU")}</span> : "Awaiting your acceptance below."}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Accept / sign */}
+        {po.status !== "accepted" && (
+          <div style={{ maxWidth: 560, margin: "0 auto", padding: "4px 16px 16px" }}>
+            <label style={slbl}>Type your full name to accept this PO</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Your full name" style={{ ...sinp, flex: 1 }} />
+              <button onClick={accept} disabled={!name.trim() || accepting} style={{ padding: "11px 18px", borderRadius: 8, border: "none", background: name.trim() ? "#22c55e" : "#1e1e1e", color: name.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: name.trim() ? "pointer" : "not-allowed" }}>{accepting ? "…" : "ACCEPT PO"}</button>
+            </div>
+          </div>
+        )}
+
+        {/* Per-PO message thread */}
+        <div style={{ maxWidth: 560, margin: "0 auto", padding: "8px 16px 24px" }}>
+          <div style={{ fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 8 }}>Messages with the builder</div>
+          {msgs.map(m => {
+            const out = m.sender_id === user.id;
+            return (
+              <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: out ? "flex-end" : "flex-start", marginBottom: 8 }}>
+                <div style={{ fontSize: 10, color: "#444", marginBottom: 2 }}>{m.sender?.full_name || (out ? "You" : "Builder")}</div>
+                <div style={{ maxWidth: "80%", background: out ? "#2a1800" : "#1a1a1a", border: `1px solid ${out ? "#3a2200" : "#222"}`, borderRadius: 10, padding: "9px 13px", fontSize: 13, color: "#ccc" }}>{m.content}</div>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <input value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder="Message the builder about this PO…" style={{ ...sinp, flex: 1 }} />
+            <button onClick={send} disabled={!draft.trim()} style={{ padding: "11px 16px", borderRadius: 8, border: "none", background: draft.trim() ? "#e07b39" : "#1a1a1a", color: draft.trim() ? "#fff" : "#444", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: draft.trim() ? "pointer" : "default" }}>SEND</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── My purchase orders ──────────────────────────────────────────────────────────
+function MyPosScreen({ user, onBack }) {
+  const [pos, setPos] = useState(null);
+  const [open, setOpen] = useState(null);
+  useEffect(() => { getMyPurchaseOrders(user.id).then(({ data }) => setPos(data)); }, [user.id]);
+
+  if (open) return <PoDetailScreen po={open} user={user} onBack={() => setOpen(null)} />;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="My POs" subtitle="Purchase orders" onBack={onBack} />
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+        {pos === null ? [1, 2].map(i => <div key={i} style={{ height: 70, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
+          : pos.length === 0 ? <EmptyState icon="🧾" title="No purchase orders yet" subtitle="POs the builder issues to you will appear here" />
+          : pos.map(po => (
+            <button key={po.id} onClick={() => setOpen(po)} style={{ width: "100%", textAlign: "left", background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px", marginBottom: 8, cursor: "pointer" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{po.po_number}{po.trade ? ` · ${po.trade}` : ""}</div>
+                  <div style={{ fontSize: 14, color: "#ccc", marginTop: 3 }}>{po.project?.street}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: "#e07b39" }}>{poMoney((Number(po.po_value) || 0) * 1.1)}</div>
+                  <div style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: po.status === "accepted" ? "#22c55e" : "#f59e0b", marginTop: 3, textTransform: "uppercase" }}>{po.status}</div>
+                </div>
+              </div>
+            </button>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Subcontractor Home ─────────────────────────────────────────────────────────
 export default function SubcontractorApp({ user }) {
   const [projects, setProjects] = useState([]);
@@ -263,6 +394,7 @@ export default function SubcontractorApp({ user }) {
       case "documents":  return <DocsScreen {...props} />;
       case "varRequest": return <RequestVariationScreen {...props} />;
       case "myRequests": return <MyRequestsScreen {...props} />;
+      case "myPos":      return <MyPosScreen {...props} />;
       case "photos":     return <PhotosScreen {...props} />;
       default: break;
     }
@@ -272,9 +404,9 @@ export default function SubcontractorApp({ user }) {
     { key: "signIn",     ...TILES.signIn     },
     { key: "varRequest", icon: "±",  label: "Request Variation", accent: "#6366f1", bg: "#10103a" },
     { key: "myRequests", icon: "📨", label: "My Requests",       accent: "#0ea5e9", bg: "#061520" },
+    { key: "myPos",      icon: "🧾", label: "My POs",            accent: "#d97706", bg: "#1e1200" },
     { key: "documents",  ...TILES.documents  },
     { key: "photos",     ...TILES.photos     },
-    { key: "compliance", ...TILES.compliance },
   ];
 
   return (

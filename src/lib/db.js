@@ -495,6 +495,20 @@ export async function updatePurchaseOrder(id, patch) {
   return { data, error };
 }
 
+export async function getPoMessages(poId) {
+  const { data, error } = await supabase
+    .from("po_messages")
+    .select("*, sender:profiles(full_name, role)")
+    .eq("po_id", poId)
+    .order("created_at", { ascending: true });
+  return { data: data || [], error };
+}
+
+export async function sendPoMessage(payload) {
+  const { data, error } = await supabase.from("po_messages").insert(payload).select("*, sender:profiles(full_name, role)").single();
+  return { data, error };
+}
+
 // ── Users ──────────────────────────────────────────────────────────────────────
 export async function getProfiles() {
   const { data, error } = await supabase
