@@ -1,0 +1,166 @@
+{
+  "name": "SITE1 — Variation & PO Notifications (starter)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## SITE1 → n8n notifications starter\n\nEach Webhook node below receives a SITE1 event. The **Parse payload** node turns the text/plain JSON body into fields. The grey **→ …** nodes are placeholders — replace each with a real action (Gmail / Email / Slack / Telegram / Twilio).\n\n**Setup**\n1. Import this workflow.\n2. Set Vercel env `VITE_WEBHOOK_BASE` = `https://YOUR-N8N-HOST/webhook` (no trailing slash), redeploy SITE1.\n3. **Activate** this workflow (toggle top-right) so the webhook URLs go live.\n4. No CORS config needed — SITE1 sends CORS-simple requests.\n\nFull event list + payloads: SITE1_DATA_DICTIONARY.md → \"Outbound webhook events\".",
+        "height": 320,
+        "width": 420
+      },
+      "id": "note-intro",
+      "name": "README",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-260, 80]
+    },
+
+    {
+      "parameters": { "httpMethod": "POST", "path": "variations/issued", "options": {} },
+      "id": "wh-issued",
+      "name": "Variation Issued",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 100],
+      "webhookId": "site1-variations-issued"
+    },
+    {
+      "parameters": { "jsCode": "const raw = $input.first().json.body;\nconst data = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});\nreturn [{ json: data }];" },
+      "id": "parse-issued",
+      "name": "Parse payload (issued)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 100]
+    },
+    {
+      "parameters": {},
+      "id": "act-issued",
+      "name": "→ Email client: new variation to approve",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [740, 100]
+    },
+
+    {
+      "parameters": { "httpMethod": "POST", "path": "variations/approved", "options": {} },
+      "id": "wh-approved",
+      "name": "Variation Approved",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 280],
+      "webhookId": "site1-variations-approved"
+    },
+    {
+      "parameters": { "jsCode": "const raw = $input.first().json.body;\nconst data = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});\nreturn [{ json: data }];" },
+      "id": "parse-approved",
+      "name": "Parse payload (approved)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 280]
+    },
+    {
+      "parameters": {},
+      "id": "act-approved",
+      "name": "→ Notify admin: ready to invoice",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [740, 280]
+    },
+
+    {
+      "parameters": { "httpMethod": "POST", "path": "variations/rejected", "options": {} },
+      "id": "wh-rejected",
+      "name": "Variation Rejected",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 460],
+      "webhookId": "site1-variations-rejected"
+    },
+    {
+      "parameters": { "jsCode": "const raw = $input.first().json.body;\nconst data = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});\nreturn [{ json: data }];" },
+      "id": "parse-rejected",
+      "name": "Parse payload (rejected)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 460]
+    },
+    {
+      "parameters": {},
+      "id": "act-rejected",
+      "name": "→ Notify builder: variation declined",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [740, 460]
+    },
+
+    {
+      "parameters": { "httpMethod": "POST", "path": "po/issued", "options": {} },
+      "id": "wh-po",
+      "name": "PO Issued",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 640],
+      "webhookId": "site1-po-issued"
+    },
+    {
+      "parameters": { "jsCode": "const raw = $input.first().json.body;\nconst data = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});\nreturn [{ json: data }];" },
+      "id": "parse-po",
+      "name": "Parse payload (PO)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 640]
+    },
+    {
+      "parameters": {},
+      "id": "act-po",
+      "name": "→ Notify subbie: new purchase order",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [740, 640]
+    },
+
+    {
+      "parameters": { "httpMethod": "POST", "path": "subbie/variation-request", "options": {} },
+      "id": "wh-subreq",
+      "name": "Subbie Variation Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 820],
+      "webhookId": "site1-subbie-request"
+    },
+    {
+      "parameters": { "jsCode": "const raw = $input.first().json.body;\nconst data = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});\nreturn [{ json: data }];" },
+      "id": "parse-subreq",
+      "name": "Parse payload (request)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 820]
+    },
+    {
+      "parameters": {},
+      "id": "act-subreq",
+      "name": "→ Notify builder: new subbie request to review",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [740, 820]
+    }
+  ],
+  "connections": {
+    "Variation Issued": { "main": [[{ "node": "Parse payload (issued)", "type": "main", "index": 0 }]] },
+    "Parse payload (issued)": { "main": [[{ "node": "→ Email client: new variation to approve", "type": "main", "index": 0 }]] },
+
+    "Variation Approved": { "main": [[{ "node": "Parse payload (approved)", "type": "main", "index": 0 }]] },
+    "Parse payload (approved)": { "main": [[{ "node": "→ Notify admin: ready to invoice", "type": "main", "index": 0 }]] },
+
+    "Variation Rejected": { "main": [[{ "node": "Parse payload (rejected)", "type": "main", "index": 0 }]] },
+    "Parse payload (rejected)": { "main": [[{ "node": "→ Notify builder: variation declined", "type": "main", "index": 0 }]] },
+
+    "PO Issued": { "main": [[{ "node": "Parse payload (PO)", "type": "main", "index": 0 }]] },
+    "Parse payload (PO)": { "main": [[{ "node": "→ Notify subbie: new purchase order", "type": "main", "index": 0 }]] },
+
+    "Subbie Variation Request": { "main": [[{ "node": "Parse payload (request)", "type": "main", "index": 0 }]] },
+    "Parse payload (request)": { "main": [[{ "node": "→ Notify builder: new subbie request to review", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "version": 1
+}
