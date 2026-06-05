@@ -16,6 +16,14 @@ alter table projects add column if not exists telegram_chat_id text;
 alter table projects add column if not exists lat numeric;
 alter table projects add column if not exists lng numeric;
 alter table projects add column if not exists geofence_radius int default 100;
+-- Subbies may read the project row (name/address only) for projects where they
+-- hold a PO or have submitted a request — WITHOUT full project membership, so they
+-- gain no access to financial/operational project data. (Additive; OR'd with projects_read.)
+drop policy if exists "projects_read_subbie" on projects;
+create policy "projects_read_subbie" on projects for select to authenticated using (
+  id in (select project_id from purchase_orders where subbie_id = auth.uid())
+  or id in (select project_id from subbie_requests where submitted_by = auth.uid())
+);
 
 -- ── PROFILES — extended columns ─────────────────────────────────
 alter table profiles add column if not exists phone text;
