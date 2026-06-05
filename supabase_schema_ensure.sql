@@ -27,6 +27,10 @@ alter table profiles add column if not exists address text;
 alter table profiles add column if not exists emergency_contact_name text;
 alter table profiles add column if not exists emergency_contact_phone text;
 alter table profiles add column if not exists emergency_contact_relationship text;
+-- Builders/office may update any profile (Team-tab role assignment). Self-update stays via profiles_update_own.
+drop policy if exists "profiles_admin_update" on profiles;
+create policy "profiles_admin_update" on profiles for update to authenticated
+  using (exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('builder','office')));
 
 -- ── TASKS — extended columns + relax priority ───────────────────
 alter table tasks add column if not exists description text;
