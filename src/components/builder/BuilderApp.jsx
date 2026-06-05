@@ -284,7 +284,18 @@ function TeamTab() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);  // user id whose role is being edited
   const [assigning, setAssigning] = useState(null); // user id whose projects are being edited
+  const [editName, setEditName] = useState(null); // user id whose name is being edited
+  const [nameDraft, setNameDraft] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const saveName = async (id) => {
+    setSaving(true);
+    const name = nameDraft.trim() || null;
+    await updateProfile(id, { full_name: name });
+    setProfiles(prev => prev.map(p => p.id === id ? { ...p, full_name: name } : p));
+    setEditName(null);
+    setSaving(false);
+  };
 
   useEffect(() => {
     Promise.all([getProfiles(), getProjects(), getAllProjectMembers()]).then(([pr, pj, mb]) => {
@@ -331,7 +342,16 @@ function TeamTab() {
                 {(p.full_name || "?").split(" ").map(n => n[0]).join("").slice(0, 2)}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, color: "#ccc" }}>{p.full_name || "No name set"}</div>
+                {editName === p.id
+                  ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 2 }}>
+                      <input value={nameDraft} onChange={e => setNameDraft(e.target.value)} placeholder="Full name" autoFocus onKeyDown={e => e.key === "Enter" && saveName(p.id)} style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 6, color: "#f0f0f0", fontSize: 14, padding: "6px 9px", fontFamily: "DM Sans, sans-serif" }} />
+                      <button onClick={() => saveName(p.id)} disabled={saving} style={{ padding: "6px 10px", borderRadius: 6, border: "none", background: "#22c55e", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif" }}>SAVE</button>
+                      <button onClick={() => setEditName(null)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#666", fontSize: 12, cursor: "pointer" }}>✕</button>
+                    </div>
+                  )
+                  : <div onClick={() => { setEditName(p.id); setNameDraft(p.full_name || ""); }} style={{ fontSize: 14, color: p.full_name ? "#ccc" : "#f59e0b", cursor: "pointer" }} title="Click to edit name">{p.full_name || "Set name…"} <span style={{ fontSize: 11, color: "#555" }}>✎</span></div>
+                }
                 {editing === p.id
                   ? (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
