@@ -14,7 +14,11 @@ export default function SupervisorApp({ user }) {
   const [projectId, setProjectIdRaw] = useState(null);
   const [stats, setStats] = useState({ onSite: 0, tasks: 0, issues: 0, hazards: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [initialScreen, setInitialScreen] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // From an action item targeting a different assigned project: switch project + open the screen.
+  const switchToAction = (pid, screenKey) => { setInitialScreen(screenKey); setProjectId(pid); };
 
   // Persist the last viewed project so the app reopens where the supervisor left off
   const setProjectId = (id) => {
@@ -73,6 +77,8 @@ export default function SupervisorApp({ user }) {
       user={user}
       maxWidth={430}
       stats={stats}
+      initialScreen={initialScreen}
+      onSwitchProject={switchToAction}
       badges={{ tasks: stats.tasks, issues: stats.issues, safety: stats.hazards, attendance: stats.onSite }}
       header={
         <ProjectHeader

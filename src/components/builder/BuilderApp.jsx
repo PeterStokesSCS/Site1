@@ -5,6 +5,8 @@ import { supabase } from "../../lib/supabase";
 import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
 import ProjectDashboard from "../shared/ProjectDashboard";
+import ActionQueue, { useActionItems } from "../shared/ActionQueue";
+import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 
 const TABS = [
   { id: "dashboard",  label: "Dashboard",  icon: "⊞" },
@@ -59,16 +61,19 @@ function ProjectCard({ project, onOpen }) {
 }
 
 // ── Dashboard tab ──────────────────────────────────────────────────────────────
-function DashboardTab({ projects, timesheets, onNavigate, onOpenProject }) {
+function DashboardTab({ projects, timesheets, onNavigate, onOpenProject, user, onOpenAction }) {
   const active = projects.filter(p => p.status === "active").length;
   const pendingTs = timesheets.filter(t => t.status === "pending").length;
+  const { items: actionItems } = useActionItems("builder", user.id);
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 20 }}>
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 30, fontWeight: 700, color: "#f0f0f0" }}>Company Dashboard</div>
         <div style={{ fontSize: 14, color: "#555", marginTop: 4 }}>{new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
       </div>
+
+      <ActionQueue items={actionItems} title="Action Queue" onOpen={onOpenAction} allClear="No outstanding actions" />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
         {[
           { v: active,    l: "Active Projects",       c: "#e07b39", tab: "projects", filter: { status: "active" } },
@@ -403,9 +408,19 @@ export default function BuilderApp({ user }) {
   const [tab, setTab] = useState("dashboard");
   const [projectFilter, setProjectFilter] = useState(null);
   const [openProject, setOpenProject] = useState(null);
+  const [initialScreen, setInitialScreen] = useState(null);
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Open a project from a normal click (no deep-link) vs. from an action item.
+  const openProjectClean = (p) => { setInitialScreen(null); setOpenProject(p); };
+  const openAction = (item) => {
+    const t = item.target;
+    if (t.kind === "timesheet") { navigate("labour"); return; }
+    const proj = projects.find(p => p.id === t.projectId);
+    if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setOpenProject(proj); }
+  };
 
   useEffect(() => {
     Promise.all([getProjects(), getAllTimesheets()]).then(([p, t]) => {
@@ -425,14 +440,14 @@ export default function BuilderApp({ user }) {
 
   // Opening a project takes over the full screen with its Project Dashboard
   if (openProject) {
-    return <ProjectDashboard project={openProject} user={user} onBack={() => setOpenProject(null)} />;
+    return <ProjectDashboard project={openProject} user={user} initialScreen={initialScreen} onBack={() => setOpenProject(null)} />;
   }
 
   const renderTab = () => {
     if (loading) return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3].map(i => <CardSkeleton key={i} />)}</div>;
     switch (tab) {
-      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={setOpenProject} />;
-      case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} onOpenProject={setOpenProject} />;
+      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={openProjectClean} user={user} onOpenAction={openAction} />;
+      case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} onOpenProject={openProjectClean} />;
       case "labour":     return <LabourTab timesheets={timesheets} onApprove={handleApprove} user={user} />;
       case "team":       return <TeamTab />;
       default: return <div style={{ color: "#444", padding: "40px 0", textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>Coming in Stage 3</div>;

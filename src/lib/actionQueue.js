@@ -73,6 +73,13 @@ function mk({ type, priority, role, project, projectId, since, dueAt, descriptio
 }
 const PROJ = "project:projects(id, job_number, street)";
 
+// Maps an item's navigation-intent kind to a Project Dashboard screen key.
+// (Builder timesheets resolve in the Labour tab, handled separately.)
+export const KIND_TO_PROJECT_SCREEN = {
+  variation: "variations", task: "tasks", hazard: "safety", issue: "issues",
+  dailylog: "dailyLog", attendance: "attendance", commercial: "commercial", po: "commercial",
+};
+
 // ── Predicate registry ─────────────────────────────────────────────────────────
 // Each entry: { key, role, priority, query(ctx) -> ActionItem[] }. Office reuses builder.
 export const REGISTRY = [

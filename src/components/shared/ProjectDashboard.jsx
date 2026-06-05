@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import AppTile from "./AppTile";
 import { EmptyState } from "./LoadingScreen";
 import { HEALTH } from "../../lib/theme";
+import ActionQueue, { useActionItems } from "./ActionQueue";
+import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import TasksFeature from "../supervisor/TasksFeature";
 import IssuesFeature from "../supervisor/IssuesFeature";
 import OnSiteFeature from "../supervisor/OnSiteFeature";
@@ -58,9 +60,22 @@ function StatRow({ stats, onNav }) {
   );
 }
 
-export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth }) {
-  const [screen, setScreen] = useState(null);
+export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, onSwitchProject }) {
+  const [screen, setScreen] = useState(initialScreen || null);
   const health = HEALTH[project.health] || HEALTH.green;
+
+  // Deep-link from an action item (parent sets initialScreen, possibly after switching project).
+  useEffect(() => { if (initialScreen) setScreen(initialScreen); }, [initialScreen]);
+
+  // Supervisor's "My actions today" — only computed/shown for supervisors here.
+  const isSupervisor = user?.role === "supervisor";
+  const { items: actionItems } = useActionItems(user?.role, user?.id, isSupervisor);
+  const onAction = (item) => {
+    const key = KIND_TO_PROJECT_SCREEN[item.target.kind];
+    if (!key) return;
+    if (item.projectId && item.projectId !== project.id && onSwitchProject) onSwitchProject(item.projectId, key);
+    else setScreen(key);
+  };
 
   if (screen) {
     const props = { project, user, onBack: () => setScreen(null) };
@@ -95,6 +110,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
         />
       )}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+        {isSupervisor && <ActionQueue items={actionItems} title="My actions today" max={10} onOpen={onAction} allClear="You're all caught up" />}
         {stats ? (
           <StatRow stats={stats} onNav={setScreen} />
         ) : (
