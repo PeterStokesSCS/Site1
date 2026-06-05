@@ -455,7 +455,7 @@ export async function getMySubbieRequests(userId) {
 export async function getSubbieRequests(projectId) {
   const { data, error } = await supabase
     .from("subbie_requests")
-    .select("*, submitted_by:profiles(full_name, company)")
+    .select("*, submitted_by:profiles(id, full_name, company)")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   return { data: data || [], error };
@@ -463,6 +463,35 @@ export async function getSubbieRequests(projectId) {
 
 export async function updateSubbieRequest(id, patch) {
   const { data, error } = await supabase.from("subbie_requests").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
+// ── Purchase orders (issued to subbies on approved variations) ──────────────────
+export async function createPurchaseOrder(payload) {
+  const { data, error } = await supabase.from("purchase_orders").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function getPurchaseOrders(projectId) {
+  const { data, error } = await supabase
+    .from("purchase_orders")
+    .select("*, subbie:profiles(full_name, company)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function getMyPurchaseOrders(subbieId) {
+  const { data, error } = await supabase
+    .from("purchase_orders")
+    .select("*, project:projects(job_number, street)")
+    .eq("subbie_id", subbieId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function updatePurchaseOrder(id, patch) {
+  const { data, error } = await supabase.from("purchase_orders").update(patch).eq("id", id).select().single();
   return { data, error };
 }
 

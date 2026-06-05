@@ -3,7 +3,7 @@ import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
 import letterheadUrl from "../../assets/letterhead.png";
-import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles, getSubbieRequests, updateSubbieRequest } from "../../lib/db";
+import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles, getSubbieRequests, updateSubbieRequest, createPurchaseOrder, getPurchaseOrders } from "../../lib/db";
 import { uploadFile } from "../../lib/storage";
 import { post } from "../../lib/webhook";
 import { downloadPdf, generatePdfBlob } from "../../lib/variationPdf";
@@ -440,6 +440,31 @@ function pbtn(color, filled) {
   return { flex: 1, padding: "12px", borderRadius: 10, border: filled ? "none" : `1px solid ${color}66`, background: filled ? color : "transparent", color: filled ? "#fff" : color, fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer", letterSpacing: 0.3 };
 }
 
+// ── Issue a subbie PO (builder's cost to the subbie, excludes margin) ──────────
+function PoIssueForm({ variation: v, request, onIssue, onCancel }) {
+  const [fields, setFields] = useState({ trade: request?.trade || "", scope: v.description || v.title || "", po_value: v.builder_cost ?? "" });
+  const [saving, setSaving] = useState(false);
+  const go = async () => { setSaving(true); await onIssue(v, request, fields); setSaving(false); };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Issue Purchase Order" subtitle={`${v.ref}-PO`} onBack={onCancel} />
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
+        <div style={{ background: "#101010", border: "1px solid #2a2a2a", borderRadius: 12, padding: 16 }}>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>To: <b style={{ color: "#ccc" }}>{request?.submitted_by?.full_name || "Subcontractor"}</b>{request?.submitted_by?.company ? ` · ${request.submitted_by.company}` : ""}</div>
+          <label style={lbl}>Trade</label>
+          <input value={fields.trade} onChange={e => setFields(f => ({ ...f, trade: e.target.value }))} placeholder="Trade" style={{ ...inp, marginBottom: 12 }} />
+          <label style={lbl}>Scope of works (subbie's trade only)</label>
+          <textarea value={fields.scope} onChange={e => setFields(f => ({ ...f, scope: e.target.value }))} rows={4} style={{ ...inp, resize: "vertical", marginBottom: 12 }} />
+          <label style={lbl}>PO value $ (your cost to the subbie — excludes margin, not shown to client)</label>
+          <input value={fields.po_value} onChange={e => setFields(f => ({ ...f, po_value: e.target.value }))} type="number" placeholder="0" style={{ ...inp, marginBottom: 8 }} />
+          {v.eot && <div style={{ fontSize: 12, color: "#f59e0b", marginBottom: 8 }}>⏱ EOT carried from variation: {v.eot_days || "?"} day(s){v.eot_description ? ` — ${v.eot_description}` : ""}</div>}
+          <button onClick={go} disabled={saving} style={{ width: "100%", marginTop: 8, padding: "13px", borderRadius: 10, border: "none", background: "#22c55e", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer", letterSpacing: 0.3 }}>{saving ? "ISSUING…" : "ISSUE PURCHASE ORDER"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Variations list (builder console) ──────────────────────────────────────────
 export default function VariationsList({ project, user, onBack }) {
   const [vars, setVars] = useState(null);
@@ -452,18 +477,43 @@ export default function VariationsList({ project, user, onBack }) {
   const canSeeMargin = user.role === "builder" || user.role === "office";
 
   const [nameMap, setNameMap] = useState({});
-  const [subReqs, setSubReqs] = useState([]);     // incoming subbie variation requests
+  const [allReqs, setAllReqs] = useState([]);     // every subbie request (any status)
+  const [pos, setPos] = useState([]);             // purchase orders for this project
   const [convertReq, setConvertReq] = useState(null); // request being converted to a draft
   const [rejectReq, setRejectReq] = useState(null);   // request id pending rejection
   const [rejectReason, setRejectReason] = useState("");
+  const [poForVar, setPoForVar] = useState(null);     // { variation, request } pending PO issue
+
+  const subReqs = allReqs.filter(r => r.status === "submitted");
+  const reqByVariation = Object.fromEntries(allReqs.filter(r => r.linked_variation_id).map(r => [r.linked_variation_id, r]));
+  const poByVariation = Object.fromEntries(pos.filter(p => p.variation_id).map(p => [p.variation_id, p]));
 
   const load = () => getVariations(project.id).then(({ data }) => setVars(data));
-  const loadReqs = () => getSubbieRequests(project.id).then(({ data }) => setSubReqs((data || []).filter(r => r.status === "submitted")));
+  const loadReqs = () => getSubbieRequests(project.id).then(({ data }) => setAllReqs(data || []));
+  const loadPos = () => getPurchaseOrders(project.id).then(({ data }) => setPos(data || []));
   useEffect(() => {
     load();
     loadReqs();
+    loadPos();
     getProfiles().then(({ data }) => setNameMap(Object.fromEntries((data || []).map(p => [p.id, p.full_name || "Staff"]))));
   }, [project.id]);
+
+  // Issue a PO to the subbie on an approved variation (PO value = builder cost, excl margin).
+  const issuePo = async (v, req, fields) => {
+    const payload = {
+      project_id: project.id, variation_id: v.id, subbie_id: req?.submitted_by?.id || req?.submitted_by || null,
+      po_number: `${v.ref}-PO`, trade: fields.trade || req?.trade || null, scope: fields.scope || v.description || v.title,
+      eot: !!v.eot, eot_days: v.eot_days || null, eot_description: v.eot_description || null,
+      po_value: parseFloat(fields.po_value) || 0, gst_treatment: "10%", status: "issued", created_by: user.id,
+    };
+    const { data: po } = await createPurchaseOrder(payload);
+    if (po) {
+      setPos(prev => [po, ...prev]);
+      if (req) { await updateSubbieRequest(req.id, { status: "approved" }); setAllReqs(prev => prev.map(r => r.id === req.id ? { ...r, status: "approved" } : r)); }
+      post("/po/issued", { po_number: po.po_number, project_id: project.id, variation_id: v.id, subbie_id: payload.subbie_id, po_value: payload.po_value, scope: payload.scope }).catch(() => {});
+    }
+    setPoForVar(null);
+  };
 
   // Convert a subbie request into a pre-filled draft variation, linking the two.
   const onConvertSaved = async (v, isNew, req) => {
@@ -525,6 +575,10 @@ export default function VariationsList({ project, user, onBack }) {
   if (preview) {
     return <VariationPreview variation={preview} project={project} vars={vars || []} user={user} canSeeMargin={canSeeMargin} nameMap={nameMap}
       onBack={() => setPreview(null)} onEdit={(v) => { setPreview(null); setEditing(v); }} onPatch={patchVar} onRevise={revise} />;
+  }
+
+  if (poForVar) {
+    return <PoIssueForm variation={poForVar.variation} request={poForVar.request} onIssue={issuePo} onCancel={() => setPoForVar(null)} />;
   }
 
   if (convertReq) {
@@ -615,6 +669,15 @@ export default function VariationsList({ project, user, onBack }) {
                     <div style={{ marginTop: 10, background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#f0a0a0" }}>
                       ✕ Declined by <b>{v.client_signature}</b>{v.approval_date ? ` · ${new Date(v.approval_date).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
                     </div>
+                  )}
+
+                  {/* Subbie PO — only on approved variations converted from a subbie request */}
+                  {canCreate && v.status === "approved" && reqByVariation[v.id] && (
+                    poByVariation[v.id]
+                      ? <div style={{ marginTop: 10, background: "#10103a", border: "1px solid #6366f155", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#a5b4fc" }}>
+                          🧾 PO {poByVariation[v.id].po_number} issued to {reqByVariation[v.id].submitted_by?.full_name || "subbie"}{poByVariation[v.id].status === "accepted" ? " · accepted ✓" : ""}
+                        </div>
+                      : <button onClick={() => setPoForVar({ variation: v, request: reqByVariation[v.id] })} style={{ ...btn("#6366f1", true), marginTop: 10 }}>🧾 Generate Subbie PO</button>
                   )}
 
                   {canCreate && (
