@@ -69,8 +69,11 @@ export default function App() {
   // Logged in but profile not loaded yet
   if (!profile) return <Loading />;
 
-  // Dev mode — allow role override via URL param
-  const roleOverride = DEV_MODE
+  // Dev mode — role override via URL param, but ONLY for real admin accounts.
+  // A non-admin can never use ?dev=true to escalate their UI to another role.
+  const isAdmin = profile.role === "builder" || profile.role === "office";
+  const allowDev = DEV_MODE && isAdmin;
+  const roleOverride = allowDev
     ? new URLSearchParams(window.location.search).get("role")
     : null;
   const role = roleOverride || profile.role;
@@ -106,7 +109,7 @@ export default function App() {
   return (
     <>
       {view}
-      {DEV_MODE && <DevSwitcher />}
+      {allowDev && <DevSwitcher />}
     </>
   );
 }
