@@ -5,6 +5,7 @@ import AppTile from "../shared/AppTile";
 import OfflineBar from "../shared/OfflineBar";
 import FileUploadButton from "../shared/FileUploadButton";
 import PhotosScreen from "../shared/PhotosScreen";
+import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import letterheadUrl from "../../assets/letterhead.png";
 import { EmptyState, Skeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
@@ -370,6 +371,13 @@ export default function SubcontractorApp({ user }) {
 
   const project = projects.find(p => p.id === projectId);
 
+  // Attention Centre — subby items are scoped to their own POs/requests (no financials).
+  const { items: actionItems } = useActionItems("subcontractor", user.id);
+  const onOpenAction = (item) => {
+    if (item.target.kind === "subbiePo") setScreen("myPos");
+    else if (item.target.kind === "subbieRequest") setScreen("myRequests");
+  };
+
   if (loading) return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <div style={{ padding: "14px 16px", background: "#111", borderBottom: "1px solid #1e1e1e" }}>
@@ -427,6 +435,7 @@ export default function SubcontractorApp({ user }) {
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 24px" }}>
+        {actionItems?.length > 0 && <ActionQueue items={actionItems} title="Action required" onOpen={onOpenAction} />}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
           {TILE_GRID.map(tile => <AppTile key={tile.key} {...tile} onClick={() => setScreen(tile.key)} />)}
         </div>
