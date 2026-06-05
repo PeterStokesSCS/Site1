@@ -5,6 +5,7 @@ import { EmptyState, Skeleton, CardSkeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
 import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos, updateVariation } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
+import { post } from "../../lib/webhook";
 
 // Client progress gallery — only photos the team marked visible to the client
 function ClientPhotosScreen({ project, onBack }) {
@@ -162,6 +163,13 @@ function SignOffModal({ variation, user, onClose, onDone }) {
       ? { status: "approved", client_approved: true, client_signature: name.trim(), approval_date: nowIso, revision_history: history, ...meta }
       : { status: "rejected", client_approved: false, client_signature: name.trim(), approval_date: nowIso, revision_history: history, ...meta };
     const { data } = await updateVariation(v.id, patch);
+    // Fire-and-forget routing event for n8n (post-approval routing to supervisor/admin,
+    // or rejection alert to builder). No-op until VITE_WEBHOOK_BASE is configured.
+    post(decision === "approved" ? "/variations/approved" : "/variations/rejected", {
+      variation_id: v.id, ref: v.ref, project_id: v.project_id, title: v.title,
+      total_inc_gst: v.total_inc_gst ?? v.amount, signed_by: name.trim(), at: nowIso,
+      ...(decision === "rejected" && reason.trim() ? { reason: reason.trim() } : {}),
+    }).catch(() => {});
     setSaving(false);
     onDone(data || { ...v, ...patch });
   };

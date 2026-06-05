@@ -3,10 +3,37 @@ import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
 import letterheadUrl from "../../assets/letterhead.png";
-import { getVariations, createVariation, updateVariation, deleteVariation } from "../../lib/db";
+import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles } from "../../lib/db";
 import { uploadFile } from "../../lib/storage";
+import { post } from "../../lib/webhook";
 import { downloadPdf, generatePdfBlob } from "../../lib/variationPdf";
 import { emptyLine, lineClient, lineCost, computeTotals, money, nextRef, pushAudit, approvedVariationsTotal } from "../../lib/variationCalc";
+
+// Human-readable labels for audit/revision events.
+const EVENT_LABELS = {
+  created: "Created", edited: "Edited", approved_for_issue: "Approved for issue",
+  sent_to_client: "Sent to client", issued: "Issued to client", reverted_to_draft: "Recalled to draft",
+  superseded: "Superseded", created_revision: "Revision created", signed_pdf_saved: "Signed PDF saved",
+  approved: "Approved by client", rejected: "Rejected by client",
+};
+const isUuid = (s) => typeof s === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s);
+function whoLabel(by, nameMap) {
+  if (!by) return "—";
+  if (isUuid(by)) return nameMap?.[by] || "Staff";
+  return by; // client sign-offs store the typed name directly
+}
+function nextRevLabel(old) {
+  const m = (old.revision_label || "").match(/Rev\s*([A-Z])/i);
+  return m ? "Rev " + String.fromCharCode(m[1].toUpperCase().charCodeAt(0) + 1) : "Rev A";
+}
+// Merge audit_trail + revision_history into one sorted timeline.
+function buildTimeline(v) {
+  const a = (v.audit_trail || []).map(e => ({ event: e.event, by: e.by, at: e.at, note: e.notes }));
+  const r = (v.revision_history || []).map(e => ({ event: e.action, by: e.by, at: e.at, note: e.reason }));
+  // de-dupe issued/sent that appear in both trails at the same time
+  const all = [...a, ...r].filter(e => e.at);
+  return all.sort((x, y) => new Date(x.at) - new Date(y.at));
+}
 
 // Legal acceptance wording (have solicitor confirm before go-live).
 export const LEGAL_ACCEPTANCE = "Please review and approve this variation if you wish to confirm the adjustment to your original scope of works. Under the terms of your building contract, this variation constitutes a formal change to the agreed scope and contract sum. By approving, you acknowledge the adjustment to the construction program and agree that the variation amount will be invoiced upon approval or included in a subsequent progress claim. Prompt approval is appreciated to avoid delays to the project program. This variation has been issued in accordance with the Domestic Building Contracts Act 1995 (Vic).";
@@ -208,9 +235,10 @@ function Row({ l, v, bold, small, color }) {
 // ── Formatted variation document (matches the eventual PDF) ────────────────────
 const SECT = { fontSize: 11, color: "#e07b39", textTransform: "uppercase", letterSpacing: 0.6, fontFamily: "Barlow Condensed, sans-serif", margin: "16px 0 6px" };
 
-function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onBack, onEdit, onPatch }) {
+function VariationPreview({ variation: v, project, vars, user, canSeeMargin, nameMap, onBack, onEdit, onPatch, onRevise }) {
   const [busy, setBusy] = useState(false);
   const [pdfMsg, setPdfMsg] = useState(null);
+  const [showAudit, setShowAudit] = useState(false);
   const docRef = useRef(null);
 
   const doDownload = async () => {
@@ -236,11 +264,21 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onB
   const revised = original + approvedExcl + t.total;
   const s = STATUS[v.status] || STATUS.draft;
   const locked = v.status === "approved";
+  const timeline = buildTimeline(v);
 
   const act = async (patch) => { setBusy(true); await onPatch(v, patch); setBusy(false); };
   const approveForIssue = () => act({ status: "approved_for_issue", audit_trail: pushAudit(v.audit_trail, "approved_for_issue", user.id) });
-  const sendToClient = () => act({ status: "sent", sent_at: new Date().toISOString(), audit_trail: pushAudit(v.audit_trail, "sent_to_client", user.id), revision_history: pushAudit(v.revision_history, "issued", user.id) });
+  const sendToClient = () => {
+    act({ status: "sent", sent_at: new Date().toISOString(), audit_trail: pushAudit(v.audit_trail, "sent_to_client", user.id), revision_history: pushAudit(v.revision_history, "issued", user.id) });
+    // Fire-and-forget routing event (no-op until VITE_WEBHOOK_BASE / n8n is connected).
+    post("/variations/issued", { variation_id: v.id, ref: v.ref, project_id: project.id, project: project.street, client_name: project.client_name, client_email: project.client_email, title: v.title, total_inc_gst: v.total_inc_gst ?? v.amount }).catch(() => {});
+  };
   const revertDraft = () => act({ status: "draft", audit_trail: pushAudit(v.audit_trail, "reverted_to_draft", user.id) });
+  const notifySupervisor = () => {
+    post("/variations/notify-supervisor", { variation_id: v.id, ref: v.ref, project_id: project.id, title: v.title, scope: v.description, eot: v.eot, eot_days: v.eot_days, eot_description: v.eot_description }).catch(() => {});
+    setPdfMsg("Supervisor notified (scope + EOT only)");
+    setTimeout(() => setPdfMsg(null), 2500);
+  };
 
   const labelStyle = { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif" };
 
@@ -337,6 +375,32 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onB
             </div>
           </div>
         </div>
+
+        {/* Audit history (internal — never shown on the PDF) */}
+        <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 12px 20px" }}>
+          <button onClick={() => setShowAudit(x => !x)} style={{ width: "100%", textAlign: "left", background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", cursor: "pointer", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, letterSpacing: 0.4, textTransform: "uppercase", display: "flex", justifyContent: "space-between" }}>
+            <span>📜 Audit history ({timeline.length})</span><span>{showAudit ? "▲" : "▼"}</span>
+          </button>
+          {showAudit && (
+            <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderTop: "none", borderRadius: "0 0 10px 10px", padding: "4px 14px 12px" }}>
+              {timeline.length === 0 ? <div style={{ fontSize: 12, color: "#555", padding: "8px 0" }}>No history yet</div> :
+                timeline.map((e, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, padding: "7px 0", borderBottom: i < timeline.length - 1 ? "1px solid #181818" : "none" }}>
+                    <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#e07b39", marginTop: 5, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, color: "#ccc" }}>{EVENT_LABELS[e.event] || e.event}{e.note ? <span style={{ color: "#777" }}> — {e.note}</span> : ""}</div>
+                      <div style={{ fontSize: 11, color: "#555" }}>{whoLabel(e.by, nameMap)} · {new Date(e.at).toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
+                    </div>
+                  </div>
+                ))}
+              {(v.approval_ip || v.approval_device) && (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #181818", fontSize: 10, color: "#555" }}>
+                  Sign-off metadata: {v.approval_ip ? `IP ${v.approval_ip}` : "IP n/a"}{v.approval_device ? ` · ${v.approval_device.slice(0, 70)}` : ""}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Builder action bar */}
@@ -354,7 +418,15 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onB
             <span style={{ flex: 1, alignSelf: "center", fontSize: 12, color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif" }}>Awaiting client sign-off…</span>
             <button onClick={revertDraft} disabled={busy} style={pbtn("#888")}>↩ Recall to Draft</button>
           </>}
-          {v.status === "rejected" && <button onClick={revertDraft} disabled={busy} style={pbtn("#3b82f6", true)}>↩ Revise (back to draft)</button>}
+          {v.status === "rejected" && <>
+            <button onClick={notifySupervisor} disabled={busy} style={pbtn("#f59e0b")}>🔔 Notify Supervisor</button>
+            <button onClick={() => onRevise(v)} disabled={busy} style={pbtn("#3b82f6", true)}>↻ Create Revision</button>
+          </>}
+        </div>
+      )}
+      {v.status === "superseded" && (
+        <div style={{ padding: "12px 16px 22px", borderTop: "1px solid #1e1e1e", background: "#0c0c0c", fontSize: 12, color: "#888", textAlign: "center" }}>
+          This version has been superseded by a newer revision.
         </div>
       )}
     </div>
@@ -375,12 +447,39 @@ export default function VariationsList({ project, user, onBack }) {
   const canSeeMoney = user.role === "builder" || user.role === "office";
   const canSeeMargin = user.role === "builder" || user.role === "office";
 
+  const [nameMap, setNameMap] = useState({});
+
   const load = () => getVariations(project.id).then(({ data }) => setVars(data));
-  useEffect(() => { load(); }, [project.id]);
+  useEffect(() => {
+    load();
+    getProfiles().then(({ data }) => setNameMap(Object.fromEntries((data || []).map(p => [p.id, p.full_name || "Staff"]))));
+  }, [project.id]);
 
   const onSaved = (v, isNew) => {
     setVars(prev => isNew ? [v, ...(prev || [])] : prev.map(x => x.id === v.id ? { ...x, ...v } : x));
     setEditing(null);
+  };
+
+  // Create a new revision of a (rejected/superseded) variation. Original is preserved
+  // and marked superseded; the new draft carries the same VO number with the next Rev label.
+  const revise = async (old) => {
+    const label = nextRevLabel(old);
+    const { data: created } = await createVariation({
+      project_id: project.id, ref: old.ref, revision_label: label, status: "draft", raised_by: user.id,
+      title: old.title, description: old.description, reason: old.reason, line_items: old.line_items || [],
+      subtotal: old.subtotal, gst_amount: old.gst_amount, total_inc_gst: old.total_inc_gst, amount: old.amount,
+      builder_cost: old.builder_cost, margin_amount: old.margin_amount, client_total: old.client_total,
+      eot: old.eot, eot_days: old.eot_days, eot_description: old.eot_description,
+      instruction_note: old.instruction_note, attachments: old.attachments || [],
+      supersedes_id: old.id,
+      audit_trail: [{ event: "created_revision", by: user.id, at: new Date().toISOString(), notes: `Revision of ${old.ref}${old.revision_label ? " " + old.revision_label : ""}` }],
+      revision_history: [],
+    });
+    if (!created) return;
+    await updateVariation(old.id, { status: "superseded", superseded_by_id: created.id, audit_trail: pushAudit(old.audit_trail, "superseded", user.id) });
+    setVars(prev => [created, ...prev.map(x => x.id === old.id ? { ...x, status: "superseded", superseded_by_id: created.id } : x)]);
+    setPreview(null);
+    setEditing(created);
   };
 
   // Apply a status/field patch from the preview (and keep both list + preview in sync).
@@ -401,8 +500,8 @@ export default function VariationsList({ project, user, onBack }) {
   const editable = (v) => v.status === "draft" || v.status === "pending";
 
   if (preview) {
-    return <VariationPreview variation={preview} project={project} vars={vars || []} user={user} canSeeMargin={canSeeMargin}
-      onBack={() => setPreview(null)} onEdit={(v) => { setPreview(null); setEditing(v); }} onPatch={patchVar} />;
+    return <VariationPreview variation={preview} project={project} vars={vars || []} user={user} canSeeMargin={canSeeMargin} nameMap={nameMap}
+      onBack={() => setPreview(null)} onEdit={(v) => { setPreview(null); setEditing(v); }} onPatch={patchVar} onRevise={revise} />;
   }
 
   return (
