@@ -290,5 +290,21 @@ alter table po_messages enable row level security;
 drop policy if exists "po_messages_all" on po_messages;
 create policy "po_messages_all" on po_messages for all to authenticated using (true);
 
+-- ── ACTION QUEUE (Attention Centre) — Phase 1 foundations ───────
+-- Subbie request state-transition + acknowledgement timestamps.
+alter table subbie_requests add column if not exists decided_at timestamptz;  -- set on convert/reject/approve
+alter table subbie_requests add column if not exists viewed_at timestamptz;    -- set when subby views the outcome
+
+-- notification_log: one row per email actually sent (idempotency for the hourly job).
+create table if not exists notification_log (
+  id uuid primary key default gen_random_uuid(),
+  type text, entity_type text, entity_id uuid,
+  recipient text, sent_at timestamptz default now()
+);
+create unique index if not exists notification_log_type_entity_uidx on notification_log (type, entity_id);
+alter table notification_log enable row level security;
+drop policy if exists "notification_log_all" on notification_log;
+create policy "notification_log_all" on notification_log for all to authenticated using (true);
+
 -- ── Refresh the API schema cache ────────────────────────────────
 notify pgrst, 'reload schema';

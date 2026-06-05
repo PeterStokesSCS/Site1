@@ -8,7 +8,7 @@ import PhotosScreen from "../shared/PhotosScreen";
 import letterheadUrl from "../../assets/letterhead.png";
 import { EmptyState, Skeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
-import { getProjects, getDocuments, createSubbieRequest, getMySubbieRequests, getMyPurchaseOrders, updatePurchaseOrder, getPoMessages, sendPoMessage } from "../../lib/db";
+import { getProjects, getDocuments, createSubbieRequest, getMySubbieRequests, markSubbieRequestsViewed, getMyPurchaseOrders, updatePurchaseOrder, getPoMessages, sendPoMessage } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
 import { post, enqueue } from "../../lib/webhook";
 import { useOfflineQueue } from "../../hooks/useOfflineQueue";
@@ -188,7 +188,11 @@ const REQ_STATUS = {
 };
 function MyRequestsScreen({ user, onBack }) {
   const [reqs, setReqs] = useState(null);
-  useEffect(() => { getMySubbieRequests(user.id).then(({ data }) => setReqs(data)); }, [user.id]);
+  useEffect(() => {
+    getMySubbieRequests(user.id).then(({ data }) => setReqs(data));
+    // Viewing the outcomes clears the "outcome unviewed" action item.
+    markSubbieRequestsViewed(user.id);
+  }, [user.id]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>

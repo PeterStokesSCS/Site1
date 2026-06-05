@@ -511,7 +511,7 @@ export default function VariationsList({ project, user, onBack }) {
     const { data: po } = await createPurchaseOrder(payload);
     if (po) {
       setPos(prev => [po, ...prev]);
-      if (req) { await updateSubbieRequest(req.id, { status: "approved" }); setAllReqs(prev => prev.map(r => r.id === req.id ? { ...r, status: "approved" } : r)); }
+      if (req) { await updateSubbieRequest(req.id, { status: "approved", decided_at: new Date().toISOString() }); setAllReqs(prev => prev.map(r => r.id === req.id ? { ...r, status: "approved" } : r)); }
       post("/po/issued", { po_number: po.po_number, project_id: project.id, variation_id: v.id, subbie_id: payload.subbie_id, po_value: payload.po_value, scope: payload.scope }).catch(() => {});
     }
     setPoForVar(null);
@@ -550,11 +550,11 @@ export default function VariationsList({ project, user, onBack }) {
   const onConvertSaved = async (v, isNew, req) => {
     onSaved(v, isNew);
     setConvertReq(null);
-    await updateSubbieRequest(req.id, { status: "converted", linked_variation_id: v.id });
+    await updateSubbieRequest(req.id, { status: "converted", linked_variation_id: v.id, decided_at: new Date().toISOString() });
     setSubReqs(prev => prev.filter(r => r.id !== req.id));
   };
   const doReject = async (req) => {
-    await updateSubbieRequest(req.id, { status: "rejected", rejection_reason: rejectReason.trim() || "Not approved" });
+    await updateSubbieRequest(req.id, { status: "rejected", rejection_reason: rejectReason.trim() || "Not approved", decided_at: new Date().toISOString() });
     setSubReqs(prev => prev.filter(r => r.id !== req.id));
     setRejectReq(null); setRejectReason("");
   };

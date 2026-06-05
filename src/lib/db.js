@@ -466,6 +466,18 @@ export async function updateSubbieRequest(id, patch) {
   return { data, error };
 }
 
+// Mark a subby's decided (approved/rejected) requests as viewed — clears the
+// `request.outcome_unviewed` action item once they've seen the outcome.
+export async function markSubbieRequestsViewed(userId) {
+  const { error } = await supabase
+    .from("subbie_requests")
+    .update({ viewed_at: new Date().toISOString() })
+    .eq("submitted_by", userId)
+    .in("status", ["approved", "rejected"])
+    .is("viewed_at", null);
+  return { error };
+}
+
 // ── Purchase orders (issued to subbies on approved variations) ──────────────────
 export async function createPurchaseOrder(payload) {
   const { data, error } = await supabase.from("purchase_orders").insert(payload).select().single();
