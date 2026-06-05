@@ -528,6 +528,30 @@ export async function updateProfile(id, payload) {
   return { data, error };
 }
 
+// ── Project membership (who is assigned to which project) ───────────────────────
+export async function getAllProjectMembers() {
+  const { data, error } = await supabase.from("project_members").select("*");
+  return { data: data || [], error };
+}
+
+export async function addProjectMember(projectId, userId, role) {
+  const { data, error } = await supabase
+    .from("project_members")
+    .insert({ project_id: projectId, user_id: userId, role: role || null })
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function removeProjectMember(projectId, userId) {
+  const { error } = await supabase
+    .from("project_members")
+    .delete()
+    .eq("project_id", projectId)
+    .eq("user_id", userId);
+  return { error };
+}
+
 export async function inviteUser(email, fullName, role) {
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName, role },

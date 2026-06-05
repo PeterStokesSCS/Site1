@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember } from "../../lib/db";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
 import { HEALTH } from "../../lib/theme";
@@ -275,14 +275,21 @@ function LabourTab({ timesheets, onApprove, user }) {
 }
 
 // ── Team management tab ────────────────────────────────────────────────────────
+const ROLE_COLOR = { builder: "#e07b39", supervisor: "#f59e0b", worker: "#22c55e", subcontractor: "#3b82f6", client: "#a855f7", office: "#06b6d4" };
+
 function TeamTab() {
   const [profiles, setProfiles] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [members, setMembers] = useState([]);   // all project_members rows
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(null);
+  const [editing, setEditing] = useState(null);  // user id whose role is being edited
+  const [assigning, setAssigning] = useState(null); // user id whose projects are being edited
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getProfiles().then(({ data }) => { setProfiles(data); setLoading(false); });
+    Promise.all([getProfiles(), getProjects(), getAllProjectMembers()]).then(([pr, pj, mb]) => {
+      setProfiles(pr.data); setProjects(pj.data); setMembers(mb.data); setLoading(false);
+    });
   }, []);
 
   const saveRole = async (id, role) => {
@@ -293,41 +300,79 @@ function TeamTab() {
     setSaving(false);
   };
 
+  const memberProjectIds = (userId) => members.filter(m => m.user_id === userId).map(m => m.project_id);
+
+  const toggleProject = async (user, projectId) => {
+    const assigned = members.some(m => m.user_id === user.id && m.project_id === projectId);
+    if (assigned) {
+      setMembers(prev => prev.filter(m => !(m.user_id === user.id && m.project_id === projectId)));
+      await removeProjectMember(projectId, user.id);
+    } else {
+      const { data } = await addProjectMember(projectId, user.id, user.role);
+      if (data) setMembers(prev => [...prev, data]);
+    }
+  };
+
   const ROLES = ["builder", "supervisor", "worker", "subcontractor", "client", "office"];
-  const ROLE_COLOR = { builder: "#e07b39", supervisor: "#f59e0b", worker: "#22c55e", subcontractor: "#3b82f6", client: "#a855f7", office: "#06b6d4" };
 
   return (
     <div>
       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f0f0", marginBottom: 8 }}>TEAM</div>
-      <div style={{ fontSize: 13, color: "#555", marginBottom: 20 }}>Create users in Supabase Authentication, then assign their role here.</div>
+      <div style={{ fontSize: 13, color: "#555", marginBottom: 20 }}>Create users in Supabase Authentication, then set their role and assign them to projects here. Builders and office see every project automatically.</div>
       {loading
         ? [1,2,3].map(i => <CardSkeleton key={i} />)
-        : profiles.map(p => (
-          <div key={p.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#e07b39", color: "#0c0c0c", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
-              {(p.full_name || "?").split(" ").map(n => n[0]).join("").slice(0, 2)}
+        : profiles.map(p => {
+          const isAdmin = p.role === "builder" || p.role === "office";
+          const assignedIds = memberProjectIds(p.id);
+          return (
+          <div key={p.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px 16px", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#e07b39", color: "#0c0c0c", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                {(p.full_name || "?").split(" ").map(n => n[0]).join("").slice(0, 2)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, color: "#ccc" }}>{p.full_name || "No name set"}</div>
+                {editing === p.id
+                  ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                      {ROLES.map(r => (
+                        <button key={r} onClick={() => saveRole(p.id, r)} disabled={saving} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${p.role === r ? ROLE_COLOR[r] : "#2a2a2a"}`, background: p.role === r ? "#1a1a1a" : "transparent", color: ROLE_COLOR[r] || "#888", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", textTransform: "capitalize" }}>{r}</button>
+                      ))}
+                      <button onClick={() => setEditing(null)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#555", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                    </div>
+                  )
+                  : <div style={{ fontSize: 12, color: ROLE_COLOR[p.role] || "#555", textTransform: "capitalize", marginTop: 2 }}>{p.role || "No role assigned"}{!isAdmin && ` · ${assignedIds.length} project${assignedIds.length === 1 ? "" : "s"}`}</div>
+                }
+              </div>
+              {editing !== p.id && (
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  {!isAdmin && <button onClick={() => setAssigning(assigning === p.id ? null : p.id)} style={{ padding: "6px 12px", borderRadius: 6, border: `1px solid ${assigning === p.id ? "#e07b39" : "#2a2a2a"}`, background: "transparent", color: assigning === p.id ? "#e07b39" : "#666", fontSize: 12, cursor: "pointer" }}>Projects</button>}
+                  <button onClick={() => setEditing(p.id)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#666", fontSize: 12, cursor: "pointer" }}>Role</button>
+                </div>
+              )}
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, color: "#ccc" }}>{p.full_name || "No name set"}</div>
-              {editing === p.id
-                ? (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                    {ROLES.map(r => (
-                      <button key={r} onClick={() => saveRole(p.id, r)} disabled={saving} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${p.role === r ? ROLE_COLOR[r] : "#2a2a2a"}`, background: p.role === r ? "#1a1a1a" : "transparent", color: ROLE_COLOR[r] || "#888", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", textTransform: "capitalize" }}>
-                        {r}
-                      </button>
-                    ))}
-                    <button onClick={() => setEditing(null)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #333", background: "transparent", color: "#555", fontSize: 12, cursor: "pointer" }}>Cancel</button>
+
+            {/* Project assignment */}
+            {assigning === p.id && !isAdmin && (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #1e1e1e" }}>
+                <div style={{ fontSize: 11, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 8 }}>Assigned projects</div>
+                {projects.length === 0 ? <div style={{ fontSize: 12, color: "#444" }}>No projects yet</div> : (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {projects.map(pj => {
+                      const on = assignedIds.includes(pj.id);
+                      return (
+                        <button key={pj.id} onClick={() => toggleProject(p, pj.id)} style={{ padding: "6px 11px", borderRadius: 16, border: `1px solid ${on ? "#22c55e" : "#2a2a2a"}`, background: on ? "#06200e" : "transparent", color: on ? "#22c55e" : "#777", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", display: "flex", alignItems: "center", gap: 5 }}>
+                          {on && <span style={{ fontSize: 10 }}>✓</span>}{pj.job_number || pj.street}
+                        </button>
+                      );
+                    })}
                   </div>
-                )
-                : <div style={{ fontSize: 12, color: ROLE_COLOR[p.role] || "#555", textTransform: "capitalize", marginTop: 2 }}>{p.role || "No role assigned"}</div>
-              }
-            </div>
-            {editing !== p.id && (
-              <button onClick={() => setEditing(p.id)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#666", fontSize: 12, cursor: "pointer" }}>Edit Role</button>
+                )}
+              </div>
             )}
           </div>
-        ))
+          );
+        })
       }
     </div>
   );
