@@ -135,30 +135,34 @@
 
 ---
 
-## 9. Variations ⚠️ (two parallel implementations — reconcile)
+## 9. Variations — full contract-variation workflow (Phases 1–5, unified)
 
-### 9a. Dashboard "Variations" tile → `SupervisorScreens.VariationsScreen` (simple, read-only)
-Shows approved $ total + pending count + list using legacy fields only (`ref`, `title`, `amount`, `status`). No create/edit. **This is what the Project Dashboard Variations tile opens.**
+The Project Dashboard **Variations** tile and **Commercial → Variations** both open the **same** module now (`shared/VariationsModule.jsx`). The old read-only dashboard screen has been removed. Uses `lib/variationCalc.js` (money maths) and `lib/variationPdf.js` (PDF).
 
-### 9b. Commercial → Variations → `shared/VariationsModule.jsx` (Phase 1, rich — the new build)
-Full builder tool: line items, GST, EOT, internal cost/margin, evidence, auto-numbering, live running contract sum, edit/delete, issue-to-client. Uses `lib/variationCalc.js`.
-- **Line item (jsonb):** `{id, description, mode:"margin"|"direct", cost, margin_pct, client_amount, gst_exempt}`.
-- **Auto-number** `JOBNUMBER-V01`, assigned on first save, never changes.
-- **Cost modes:** margin (`client=cost×(1+margin%)`) or direct; margin=client−cost. **GST 10%** default, per-line exempt.
-- **Running contract sum** = `project.budget + approved variations + this`.
-- **Status flow:** draft/pending → (Send) → sent → approved/rejected; superseded. Editable only while draft/pending.
-- **Audit trail** appended on created/edited/sent.
-- **Role gating (UI only):** financials/margin to builder/office only; supervisor sees scope+EOT.
+### 9a. Builder creation form
+Line items with **per-line cost mode** (margin% or direct price), **10% GST** default + per-line exempt, EOT toggle, client-instruction evidence (note + attachments), **auto-numbering** (`JOBNUMBER-V01`, set once), **auto-link** to project/client/site, **live running contract sum** (`project.budget + approved variations + this`), and internal **builder cost / margin** (builder/office only). Edit/delete while draft.
 
-### 9c. Client sign-off → `client/ClientApp → VariationsScreen + SignOffModal`
-Status `sent` → "Review & Sign". Modal: scope/cost(inc GST)/EOT/attachment + consent text; type full name → Approve & Sign (two-step) or Decline (+reason). Writes `client_approved`, `client_signature`, `approval_date`, `status`, appends `revision_history`. Badge counts `status='sent'`.
+### 9b. Formatted document preview + PDF (`VariationPreview`)
+**📄 Open document** renders the variation as a formatted A4 doc: Stokes **letterhead** (`src/assets/letterhead.png`), charcoal status bar + status pill, project/client/site block, VO number/title, description/reason/EOT, **cost table** (lines → subtotal → GST → total), running contract sum bar, attachments, **DBCA 1995 legal acceptance** paragraph, signature block (auto-fills client name/date once signed), ABN/VBA footer. **⬇ Download PDF** and **💾 Save signed PDF** (stores to `signed_pdf_url`) via `jsPDF`+`html2canvas` (lazy-loaded). Internal **📜 Audit history** panel (merged `audit_trail`+`revision_history` timeline + sign-off IP/device) — never on the PDF.
 
-### 9d. Office approval → `OfficeAdminApp → VariationsTab`
-Cross-project Approve/Reject (legacy `amount` only). Fires webhook `/variations/status`.
+### 9c. Status flow + actions (builder)
+`draft`/`pending` → **Edit / ✓ Approve for Issue** → `approved_for_issue` (locked) → **✍ Send to Client** → `sent` → client signs → `approved` (permanently locked) or `rejected`. Rejected → **🔔 Notify Supervisor** (manual) / **↻ Create Revision** (supersede → new `Rev A/B` draft, original preserved as `superseded`). Recall available from sent/approved_for_issue.
 
-**Incomplete (vs spec):** No formatted PDF preview, no letterhead PDF generation (asset stored at `src/assets/letterhead.png`, unused), no client dashboard alert card, no IP/device capture, no notification routing, no revision (Rev A/B) UI, no subbie portal/AI conversion, no Xero. **Dashboard tile (9a) not unified with the new module (9b).**
+### 9d. Client sign-off (`client/ClientApp → VariationsScreen + SignOffModal`)
+Client **dashboard alert card** when a variation is `sent`. Review formatted summary (scope/cost inc GST/EOT/attachment) + consent → type name → **Approve & Sign** (two-step) or **Decline** (+reason). Captures `client_approved`, `client_signature`, `approval_date`, **`approval_device`/`approval_ip`** (best-effort), `approval_statement_accepted`. Approved card offers **📄 Download signed PDF**. Fires `/variations/approved|rejected`.
 
-**Assumptions:** Single client signer (typed name = legal signature). `budget` = original contract value. Flat 10% GST.
+### 9e. Subcontractor variation requests + PO loop (Phase 5)
+- **Subbie submits** (`subcontractor/SubcontractorApp → RequestVariationScreen`): any-format upload + note → `subbie_requests`. Tracks outcome in **My Requests** (Submitted/In Review/Approved/Rejected + rejection reason).
+- **Builder review queue** (top of VariationsModule): convert → **AI-assisted prefill** (`convert-variation` Edge Function via `lib/ai.js → convertVariation`; flags low-confidence fields; falls back to note-only if undeployed) → draft variation linked to the request; or reject with reason.
+- **PO generation:** on an approved variation converted from a request, builder **🧾 Generate Subbie PO** (`purchase_orders`; PO value = builder cost excl margin; scope+EOT carried) → subbie request flips to `approved`. Fires `/po/issued`.
+- **Subbie PO dashboard** (`My POs`): formatted letterhead PO document, **accept/sign**, and **per-PO messaging** (`po_messages`). Builder replies from **Commercial → Subbie POs** (`shared/PurchaseOrdersModule.jsx`).
+
+### 9f. Office approval (`OfficeAdminApp → VariationsTab`)
+Cross-project Approve/Reject on legacy `amount`. Fires `/variations/status`. (Not yet upgraded to the new module — minor.)
+
+**Dormant pending external setup (not code gaps):** AI prefill needs `convert-variation` deployed; all notification events are no-ops until `VITE_WEBHOOK_BASE`/n8n is set. No Xero hook yet (data structure ready).
+
+**Assumptions:** Single client signer (typed name = legal e-signature). `budget` = original contract value. Flat 10% GST. PO value defaults to internal builder cost. Financial-visibility rules enforced in UI only (see §0).
 
 ---
 
@@ -220,26 +224,33 @@ Cross-project Approve/Reject (legacy `amount` only). Fires webhook `/variations/
 
 **Logic/rules:** Photo send writes message with `image_url` + files into gallery linked to the message; client-channel photos auto `client_visible`. Fires webhook `/messages`.
 
-**Incomplete:** No realtime (manual reload — Supabase Realtime not used anywhere). No read receipts, no per-PO threads. `content` is `not null` so image-only messages send `null` (needs attention).
+**Incomplete:** No realtime (manual reload — Supabase Realtime not used anywhere). No read receipts. `content` is `not null` so image-only messages send `null` (needs attention). Note: **per-PO messaging** is built separately (`po_messages`, see §15).
 
 ---
 
 ## 14. Client portal
 
-**What it does:** Client sees progress, schedule (soon), variations (+sign-off), documents, client-visible photos, invoices (soon).
+**What it does:** Client sees progress, schedule (soon), variations (+sign-off + signed PDF), documents, client-visible photos, invoices (soon).
 
 **Components:** `client/ClientApp.jsx`.
 
-**Incomplete:** Schedule + Invoices placeholders. No dashboard alert card for new variations (badge only).
+**Logic:** Now shows a **dashboard alert card** for variations awaiting sign-off (§9d) and a signed-PDF download on approved ones.
+
+**Incomplete:** Schedule + Invoices placeholders.
 
 ---
 
 ## 15. Office Admin & Subcontractor portals
 
 - **Office (`OfficeAdminApp.jsx`):** Variations approval (cross-project), Timesheets approval, Clients messaging, Documents (all projects). Schedule placeholder.
-- **Subcontractor (`SubcontractorApp.jsx`):** Safety Sign-In (SWMS + PPE → `site_visits`), Documents (non-superseded). **Tiles Tasks/Chat/Compliance/Photos route nowhere.** Reads `user.trade` which doesn't exist → undefined.
+- **Subcontractor (`SubcontractorApp.jsx`):** Now a working portal:
+  - **Safety Sign-In** (SWMS + PPE → `site_visits`), **Documents** (non-superseded), **Photos** (wired).
+  - **± Request Variation** → any-format upload + note → `subbie_requests` (§9e).
+  - **📨 My Requests** → status tracking (Submitted/In Review/Approved/Rejected + rejection reason).
+  - **🧾 My POs** → formatted letterhead PO document, **accept/sign**, **per-PO messaging** (`po_messages`) with the builder.
+  - Note: still reads `user.trade` (doesn't exist on the user object → defaults empty; subbie types trade manually).
 
-**Incomplete:** Spec'd subbie portal (PO view, variation upload, AI conversion, per-PO messaging) not built.
+**Builder side of the PO loop:** `shared/PurchaseOrdersModule.jsx` → **Commercial → Subbie POs** inbox (PO list + two-way per-PO messaging).
 
 ---
 
@@ -249,7 +260,9 @@ Cross-project Approve/Reject (legacy `amount` only). Fires webhook `/variations/
 1. `lib/webhook.js` + `hooks/useOfflineQueue.js` + `OfflineBar.jsx` — **localStorage** queue (`bsp_offline_queue`) for **action webhooks** (clock in/out, hazards, sign-in, messages, variation/timesheet status). Posts to `VITE_WEBHOOK_BASE` (n8n). **Unset → silent no-ops.**
 2. `lib/photoQueue.js` — **IndexedDB** outbox (`site1-photos`) for **photo uploads only**, auto-flush on reconnect.
 
-**Other libs:** `geocode.js` (Nominatim, no key), `ai.js` (edge function), `theme.js` (colours/TILES/HEALTH), `variationCalc.js` (money maths).
+**Other libs:** `geocode.js` (Nominatim, no key), `ai.js` (edge functions: `extractReceipt`, `convertVariation`), `theme.js` (colours/TILES/HEALTH), `variationCalc.js` (money maths), `variationPdf.js` (jsPDF/html2canvas, lazy-loaded).
+
+**Edge Functions (`supabase/functions/`):** `extract-receipt` (receipt OCR), `convert-variation` (subbie request → variation fields). Both Deno + Anthropic; need deploying with `ANTHROPIC_API_KEY`.
 
 ---
 
@@ -260,6 +273,8 @@ Built ahead, zero frontend references:
 - `material_requests` (base schema) — no UI.
 - `milestones` — `getMilestones()` read by client progress; no create/edit UI.
 - `project_members` — drives RLS visibility, but **no UI assigns members** (non-builder roles currently rely on permissive `using(true)` policies).
+
+> Now in use (no longer reserved): `subbie_requests`, `purchase_orders`, `po_messages` — see §9e/§15.
 
 ---
 

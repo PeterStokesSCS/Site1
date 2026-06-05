@@ -209,7 +209,7 @@ Base + Phase-1 sign-off/commercial columns. Two UIs write this (see inventory §
 | title | text not null | builder | |
 | description | text | builder | scope of works |
 | amount | numeric | builder | mirrors total_inc_gst (rollup compat) |
-| status | text | builder / client / office | base check pending/approved/rejected/signed; app also uses `draft`, `sent`, `superseded` |
+| status | text | builder / client / office | **status check constraint dropped** (ensure-script). Values: `draft` → `approved_for_issue` → `sent` → `approved`/`rejected`; plus `superseded` |
 | raised_by | uuid (FK profiles) | builder | |
 | approved_by | uuid (FK profiles) | office | |
 | created_at | timestamptz | system | |
@@ -377,13 +377,61 @@ These were created by `supabase_schema_ensure.sql` ahead of the construction mod
 
 ---
 
+## 25. `subbie_requests` — subcontractor variation requests (AI-assisted intake)
+| Column | Type | Written by | Notes |
+|---|---|---|---|
+| id | uuid (PK) | system | |
+| project_id | uuid (FK projects, cascade) | subcontractor | |
+| submitted_by | uuid (FK profiles) | subcontractor | the subbie |
+| trade | text | subcontractor | |
+| note | text | subcontractor | free-text request |
+| file_url | text | subcontractor | uploaded any-format submission |
+| ai_extracted | jsonb | system | reserved — AI output is currently used transiently in the convert flow, not persisted here |
+| ai_flags | text[] | system | reserved — low-confidence field names |
+| status | text (default submitted) | subcontractor / builder | submitted → converted (builder) → approved (on PO issue) / rejected |
+| rejection_reason | text | builder | shown to subbie |
+| linked_variation_id | uuid (FK variations) | builder | set on convert |
+| created_at | timestamptz | system | |
+
+## 26. `purchase_orders` — POs issued to subbies on approved variations
+| Column | Type | Written by | Notes |
+|---|---|---|---|
+| id | uuid (PK) | system | |
+| project_id | uuid (FK projects, cascade) | builder | |
+| variation_id | uuid (FK variations) | builder | the approved variation |
+| subbie_id | uuid (FK profiles) | builder | recipient |
+| po_number | text | builder | `${variation.ref}-PO` |
+| trade | text | builder | |
+| scope | text | builder | subbie's trade scope only |
+| eot | boolean (default false) | builder | carried from variation |
+| eot_days | int | builder | |
+| eot_description | text | builder | |
+| po_value | numeric | builder | builder's cost to subbie — **excludes margin**, never client-facing |
+| gst_treatment | text (default '10%') | builder | |
+| status | text (default issued) | builder / subcontractor | issued → accepted (subbie) |
+| accepted_at | timestamptz | subcontractor | on accept |
+| signature | text | subcontractor | typed name |
+| created_by | uuid (FK profiles) | builder | |
+| created_at | timestamptz | system | |
+
+## 27. `po_messages` — per-PO thread (builder ↔ subbie)
+| Column | Type | Written by | Notes |
+|---|---|---|---|
+| id | uuid (PK) | system | |
+| po_id | uuid (FK purchase_orders, cascade) | builder / subcontractor | |
+| sender_id | uuid (FK profiles) | builder / subcontractor | |
+| content | text not null | builder / subcontractor | |
+| created_at | timestamptz | system | |
+
+---
+
 ## Storage
 
 | Bucket | Visibility | Contents | Written by |
 |---|---|---|---|
 | `attachments` | public | photos, document files, variation/commercial attachments | `src/lib/storage.js → uploadFile()` |
 
-Files stored at `${folder}/${timestamp}-${rand}.${ext}`. Folders used: `photos/<projectId>`, `records/<projectId>/<recordType>`, `chat/<projectId>`, `variations/<projectId>`, `documents`, `misc`.
+Files stored at `${folder}/${timestamp}-${rand}.${ext}`. Folders used: `photos/<projectId>`, `records/<projectId>/<recordType>`, `chat/<projectId>`, `variations/<projectId>` (attachments + signed PDFs), `subbie-requests/<projectId>`, `documents`, `misc`.
 
 ---
 
@@ -397,4 +445,8 @@ Files stored at `${folder}/${timestamp}-${rand}.${ext}`. Folders used: `photos/<
 
 | Function | Purpose | Notes |
 |---|---|---|
-| `extract-receipt` | AI receipt OCR → `{vendor, amount, gst, date, ref, description}` | Requires deploy + `ANTHROPIC_API_KEY` secret in Supabase. Called from `src/lib/ai.js`. |
+| `extract-receipt` | AI receipt OCR → `{vendor, amount, gst, date, ref, description}` | Requires deploy + `ANTHROPIC_API_KEY` secret. Called from `src/lib/ai.js → extractReceipt()`. |
+| `convert-variation` | Subbie request (file + note) → `{title, description, reason, cost, eot, eot_days, eot_description, flags}` | Requires deploy (same `ANTHROPIC_API_KEY`). Called from `src/lib/ai.js → convertVariation()`. App falls back to note-only prefill if undeployed. |
+
+## Outbound webhook events (fire-and-forget → `VITE_WEBHOOK_BASE`, n8n)
+All no-ops until `VITE_WEBHOOK_BASE` is set. Paths: `/timeclock/in`, `/timeclock/out`, `/hazards`, `/site/signin`, `/issues/escalate`, `/messages`, `/variations/status`, `/variations/issued`, `/variations/approved`, `/variations/rejected`, `/variations/notify-supervisor`, `/po/issued`, `/subbie/variation-request`.
