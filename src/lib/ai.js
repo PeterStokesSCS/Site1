@@ -22,3 +22,21 @@ export async function extractReceipt(imageUrl) {
   if (data?.error) return { error: { message: data.error } };
   return { data: data?.data || null };
 }
+
+// Calls the convert-variation Edge Function. Returns { data } with
+// { title, description, reason, cost, eot, eot_days, eot_description, flags } for builder review.
+export async function convertVariation(fileUrl, note) {
+  const { data, error } = await supabase.functions.invoke("convert-variation", {
+    body: { fileUrl, note },
+  });
+  if (error) {
+    try {
+      const body = await error.context.json();
+      return { error: { message: (body.error || error.message || "").slice(0, 300) } };
+    } catch {
+      return { error: { message: error.message } };
+    }
+  }
+  if (data?.error) return { error: { message: data.error } };
+  return { data: data?.data || null };
+}

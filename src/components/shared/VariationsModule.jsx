@@ -5,6 +5,7 @@ import FileUploadButton from "./FileUploadButton";
 import letterheadUrl from "../../assets/letterhead.png";
 import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles, getSubbieRequests, updateSubbieRequest, createPurchaseOrder, getPurchaseOrders } from "../../lib/db";
 import { uploadFile } from "../../lib/storage";
+import { convertVariation } from "../../lib/ai";
 import { post } from "../../lib/webhook";
 import { downloadPdf, generatePdfBlob } from "../../lib/variationPdf";
 import { emptyLine, lineClient, lineCost, computeTotals, money, nextRef, pushAudit, approvedVariationsTotal } from "../../lib/variationCalc";
@@ -113,7 +114,8 @@ function VariationForm({ project, user, existing, initial, vars, onSaved, onCanc
     instruction_note: existing.instruction_note || "", attachments: existing.attachments || [],
   } : {
     title: initial?.title || "", reason: initial?.reason || "", description: initial?.description || "",
-    lines: [emptyLine()], eot: false, eot_days: "", eot_description: "",
+    lines: initial?.lines?.length ? initial.lines : [emptyLine()],
+    eot: !!initial?.eot, eot_days: initial?.eot_days || "", eot_description: initial?.eot_description || "",
     instruction_note: initial?.instruction_note || "", attachments: initial?.attachments || [],
   });
   const [saving, setSaving] = useState(false);
@@ -515,6 +517,35 @@ export default function VariationsList({ project, user, onBack }) {
     setPoForVar(null);
   };
 
+  const [convertingId, setConvertingId] = useState(null);
+
+  // Run AI conversion (if available) on the subbie's submission, then open a pre-filled draft.
+  const startConvert = async (r) => {
+    setConvertingId(r.id);
+    let initial = {
+      title: "", description: r.note || "",
+      reason: r.trade ? `Subcontractor request — ${r.trade}` : "Subcontractor request",
+      attachments: r.file_url ? [r.file_url] : [],
+    };
+    let flags = null;
+    try {
+      const { data } = await convertVariation(r.file_url || null, r.note || null);
+      if (data) {
+        initial = {
+          title: data.title || "",
+          description: data.description || r.note || "",
+          reason: data.reason || initial.reason,
+          eot: !!data.eot, eot_days: data.eot_days || "", eot_description: data.eot_description || "",
+          lines: data.cost ? [{ ...emptyLine(), description: (data.title || "Variation works").slice(0, 60), mode: "margin", cost: data.cost }] : undefined,
+          attachments: r.file_url ? [r.file_url] : [],
+        };
+        flags = data.flags || null;
+      }
+    } catch { /* AI function not deployed / failed — fall back to note-only prefill */ }
+    setConvertingId(null);
+    setConvertReq({ ...r, _initial: initial, _flags: flags });
+  };
+
   // Convert a subbie request into a pre-filled draft variation, linking the two.
   const onConvertSaved = async (v, isNew, req) => {
     onSaved(v, isNew);
@@ -587,8 +618,10 @@ export default function VariationsList({ project, user, onBack }) {
         <BackHeader title="Convert request" subtitle={`From ${convertReq.submitted_by?.full_name || "subcontractor"}`} onBack={() => setConvertReq(null)} />
         <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
           {convertReq.file_url && <a href={convertReq.file_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginBottom: 12, fontSize: 12, color: "#3b82f6", textDecoration: "none" }}>📎 View original submission</a>}
+          {convertReq._initial?.title && <div style={{ background: "#10103a", border: "1px solid #6366f155", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 12, color: "#a5b4fc" }}>✨ AI pre-filled this draft from the submission — review every field before pricing.</div>}
+          {convertReq._flags?.length > 0 && <div style={{ background: "#251d00", border: "1px solid #f59e0b55", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 12, color: "#f0c060" }}>⚠ AI couldn't confidently read: {convertReq._flags.join(", ")} — please check.</div>}
           <VariationForm project={project} user={user} vars={vars || []} canSeeMargin={canSeeMargin}
-            initial={{ description: convertReq.note || "", reason: convertReq.trade ? `Subcontractor request — ${convertReq.trade}` : "Subcontractor request" }}
+            initial={convertReq._initial}
             onSaved={(v, isNew) => onConvertSaved(v, isNew, convertReq)} onCancel={() => setConvertReq(null)} />
         </div>
       </div>
@@ -620,9 +653,9 @@ export default function VariationsList({ project, user, onBack }) {
                     <button onClick={() => { setRejectReq(null); setRejectReason(""); }} style={btn("#888")}>Cancel</button>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                    <button onClick={() => setConvertReq(r)} style={btn("#22c55e", true)}>→ Create draft variation</button>
-                    <button onClick={() => setRejectReq(r.id)} style={btn("#ef4444")}>Reject</button>
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center" }}>
+                    <button onClick={() => startConvert(r)} disabled={convertingId === r.id} style={btn("#22c55e", true)}>{convertingId === r.id ? "✨ Converting…" : "→ Create draft variation"}</button>
+                    <button onClick={() => setRejectReq(r.id)} disabled={convertingId === r.id} style={btn("#ef4444")}>Reject</button>
                   </div>
                 )}
               </div>
