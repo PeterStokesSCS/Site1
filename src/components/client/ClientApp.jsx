@@ -147,12 +147,20 @@ function SignOffModal({ variation, user, onClose, onDone }) {
     if (!name.trim()) return;
     setSaving(true);
     const nowIso = new Date().toISOString();
+    // Capture sign-off metadata (device always; public IP best-effort).
+    const device = typeof navigator !== "undefined" ? navigator.userAgent : null;
+    let ip = null;
+    try { ip = await Promise.race([
+      fetch("https://api.ipify.org?format=json").then(r => r.json()).then(d => d.ip),
+      new Promise(res => setTimeout(() => res(null), 2500)),
+    ]); } catch { ip = null; }
     const history = [...(v.revision_history || []), {
-      action: decision, by: name.trim(), at: nowIso, ...(decision === "rejected" && reason.trim() ? { reason: reason.trim() } : {}),
+      action: decision, by: name.trim(), at: nowIso, ...(ip ? { ip } : {}), ...(decision === "rejected" && reason.trim() ? { reason: reason.trim() } : {}),
     }];
+    const meta = { approval_device: device, approval_ip: ip, approval_statement_accepted: true, approved_version: v.ref || null };
     const patch = decision === "approved"
-      ? { status: "approved", client_approved: true, client_signature: name.trim(), approval_date: nowIso, revision_history: history }
-      : { status: "rejected", client_approved: false, client_signature: name.trim(), approval_date: nowIso, revision_history: history };
+      ? { status: "approved", client_approved: true, client_signature: name.trim(), approval_date: nowIso, revision_history: history, ...meta }
+      : { status: "rejected", client_approved: false, client_signature: name.trim(), approval_date: nowIso, revision_history: history, ...meta };
     const { data } = await updateVariation(v.id, patch);
     setSaving(false);
     onDone(data || { ...v, ...patch });
@@ -252,6 +260,9 @@ function VariationsScreen({ project, user, onBack }) {
                 )}
                 {awaiting && (
                   <button onClick={() => setSigning(v)} style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 10, border: "none", background: "#0ea5e9", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer", letterSpacing: 0.5 }}>✍ REVIEW & SIGN</button>
+                )}
+                {v.signed_pdf_url && (
+                  <a href={v.signed_pdf_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 13, color: "#3b82f6", textDecoration: "none" }}>📄 Download signed variation (PDF)</a>
                 )}
               </div>
               );

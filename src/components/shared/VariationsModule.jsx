@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
 import letterheadUrl from "../../assets/letterhead.png";
 import { getVariations, createVariation, updateVariation, deleteVariation } from "../../lib/db";
+import { uploadFile } from "../../lib/storage";
+import { downloadPdf, generatePdfBlob } from "../../lib/variationPdf";
 import { emptyLine, lineClient, lineCost, computeTotals, money, nextRef, pushAudit, approvedVariationsTotal } from "../../lib/variationCalc";
 
 // Legal acceptance wording (have solicitor confirm before go-live).
@@ -208,6 +210,26 @@ const SECT = { fontSize: 11, color: "#e07b39", textTransform: "uppercase", lette
 
 function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onBack, onEdit, onPatch }) {
   const [busy, setBusy] = useState(false);
+  const [pdfMsg, setPdfMsg] = useState(null);
+  const docRef = useRef(null);
+
+  const doDownload = async () => {
+    setPdfMsg("Generating…");
+    try { await downloadPdf(docRef.current, v.ref || "variation"); setPdfMsg(null); }
+    catch (e) { setPdfMsg("PDF failed: " + (e.message || "error")); }
+  };
+
+  // Generate the signed PDF, store it, and save its URL against the variation.
+  const saveSignedPdf = async () => {
+    setPdfMsg("Generating signed PDF…");
+    try {
+      const blob = await generatePdfBlob(docRef.current);
+      const { url, error } = await uploadFile(blob, `variations/${project.id}`, "pdf");
+      if (error) throw error;
+      await onPatch(v, { signed_pdf_url: url, audit_trail: pushAudit(v.audit_trail, "signed_pdf_saved", user.id) });
+      setPdfMsg(null);
+    } catch (e) { setPdfMsg("Save failed: " + (e.message || "error")); }
+  };
   const t = (v.line_items?.length) ? computeTotals(v.line_items) : { subtotal: v.subtotal || 0, gst: v.gst_amount || 0, total: v.total_inc_gst ?? v.amount ?? 0 };
   const original = project.budget || 0;
   const approvedExcl = vars.filter(x => x.status === "approved" && x.id !== v.id).reduce((s, x) => s + (Number(x.total_inc_gst ?? x.amount) || 0), 0);
@@ -225,10 +247,19 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, onB
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <BackHeader title={v.ref || "Variation"} subtitle="Document preview" onBack={onBack} />
+
+      {/* PDF toolbar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: "1px solid #1e1e1e", background: "#0c0c0c", flexWrap: "wrap" }}>
+        <button onClick={doDownload} style={{ ...pbtn("#6366f1", true), flex: "0 0 auto", padding: "8px 14px", fontSize: 13 }}>⬇ Download PDF</button>
+        {v.status === "approved" && !v.signed_pdf_url && <button onClick={saveSignedPdf} style={{ ...pbtn("#22c55e", true), flex: "0 0 auto", padding: "8px 14px", fontSize: 13 }}>💾 Save signed PDF</button>}
+        {v.signed_pdf_url && <a href={v.signed_pdf_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#22c55e", textDecoration: "none", fontFamily: "Barlow Condensed, sans-serif" }}>✓ Signed PDF saved — view ↗</a>}
+        {pdfMsg && <span style={{ fontSize: 12, color: "#888" }}>{pdfMsg}</span>}
+      </div>
+
       <div style={{ flex: 1, overflowY: "auto" }}>
         {/* The document — white page, A4-ish, centred */}
         <div style={{ maxWidth: 620, margin: "0 auto", padding: 12 }}>
-          <div style={{ background: "#fff", color: "#1c1c1c", borderRadius: 6, overflow: "hidden", fontFamily: "DM Sans, sans-serif" }}>
+          <div ref={docRef} style={{ background: "#fff", color: "#1c1c1c", borderRadius: 6, overflow: "hidden", fontFamily: "DM Sans, sans-serif" }}>
             <img src={letterheadUrl} alt="Stokes Construction Services" style={{ width: "100%", display: "block" }} />
             {/* Charcoal status bar */}
             <div style={{ background: "#2c2c2c", color: "#fff", padding: "8px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
