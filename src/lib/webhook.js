@@ -39,8 +39,6 @@ export async function post(path, payload, offline = true) {
     console.info("[webhook] WEBHOOK_BASE not configured — skipping event:", path);
     return;
   }
-  // Surface successful wiring in the console for diagnostics.
-  if (typeof window !== "undefined") console.debug("[webhook] →", `${WEBHOOK_BASE}${path}`);
   try {
     const res = await fetch(`${WEBHOOK_BASE}${path}`, {
       method: "POST",
