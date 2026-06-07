@@ -14,6 +14,7 @@ import CommercialModule from "./CommercialModule";
 import VariationsList from "./VariationsModule";
 import PhotosScreen from "./PhotosScreen";
 import ProjectDocsScreen from "./ProjectDocsScreen";
+import TimelineScreen from "./TimelineScreen";
 
 // §7 Project Dashboard — the project becomes its own workspace.
 // Shared by Builder (drill-in from project list) and Supervisor (home screen).
@@ -28,6 +29,7 @@ const TILES = [
   { key: "issues",        icon: "⚡", label: "Issues",        accent: "#f97316", bg: "#251200" },
   { key: "variations",    icon: "±",  label: "Variations",    accent: "#6366f1", bg: "#10103a" },
   { key: "commercial",    icon: "💰", label: "Commercial",    accent: "#d97706", bg: "#1e1200" },
+  { key: "timeline",      icon: "📈", label: "Timeline",      accent: "#0ea5e9", bg: "#06202a" },
   { key: "communication", icon: "💬", label: "Comms",         accent: "#22c55e", bg: "#06200e" },
 ];
 
@@ -91,6 +93,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "plans":         return <ProjectDocsScreen {...props} />;
       case "photos":        return <PhotosScreen {...props} />;
       case "commercial":    return <CommercialModule {...props} />;
+      case "timeline":      return <TimelineScreen {...props} />;
       default: break;
     }
   }

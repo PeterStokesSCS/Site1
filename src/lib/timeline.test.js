@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { VIC_MILESTONES, daysBetween, milestoneVariance, milestoneStatus, mustOrderBy, addDays } from "./timeline";
+import { VIC_MILESTONES, daysBetween, milestoneVariance, milestoneStatus, mustOrderBy, addDays, eotAffectedMilestones } from "./timeline";
+
+describe("eotAffectedMilestones (cascade)", () => {
+  const ms = [
+    { id: "a", sort_order: 1 }, { id: "b", sort_order: 2 }, { id: "c", sort_order: 3 },
+  ];
+  it("cascades to the chosen stage + all later ones", () => {
+    expect(eotAffectedMilestones(ms, "b", true).map(m => m.id)).toEqual(["b", "c"]);
+  });
+  it("affects only the chosen one when not cascading", () => {
+    expect(eotAffectedMilestones(ms, "b", false).map(m => m.id)).toEqual(["b"]);
+  });
+  it("empty when the milestone isn't found", () => {
+    expect(eotAffectedMilestones(ms, "z", true)).toEqual([]);
+  });
+});
 
 describe("VIC skeleton", () => {
   it("has the 6 ordered VIC stages", () => {

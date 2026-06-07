@@ -42,6 +42,15 @@ export function mustOrderBy(requiredByDate, leadTimeDays) {
   return addDays(requiredByDate, -Number(leadTimeDays));
 }
 
+// Which milestones an EOT applies to: the chosen one, plus all later stages if cascading
+// (a delay at one stage pushes everything after it).
+export function eotAffectedMilestones(milestones, fromMilestoneId, cascade = true) {
+  const from = milestones.find(m => m.id === fromMilestoneId);
+  if (!from) return [];
+  if (!cascade) return [from];
+  return milestones.filter(m => (m.sort_order ?? 0) >= (from.sort_order ?? 0));
+}
+
 // Add whole days to a date-only string (UTC math, returns 'YYYY-MM-DD').
 export function addDays(dateStr, days) {
   if (!dateStr) return null;

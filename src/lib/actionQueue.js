@@ -7,6 +7,7 @@
 // Access scoping is automatic: these queries run under the user's Supabase session,
 // so Row-Level Security limits each role to its own data.
 import { supabase } from "./supabase";
+import { milestoneVariance } from "./timeline";
 
 const TZ = "Australia/Melbourne";
 
@@ -78,6 +79,7 @@ const PROJ = "project:projects(id, job_number, street)";
 export const KIND_TO_PROJECT_SCREEN = {
   variation: "variations", task: "tasks", hazard: "safety", issue: "issues",
   dailylog: "dailyLog", attendance: "attendance", commercial: "commercial", po: "commercial",
+  timeline: "timeline",
 };
 
 // ── Predicate registry ─────────────────────────────────────────────────────────
@@ -143,6 +145,22 @@ export const REGISTRY = [
       type: "hazard.high_risk_open", priority: "high", role: "builder", project: h.project, since: h.created_at,
       description: `High-risk hazard open: ${h.title}`,
       target: { kind: "hazard", projectId: h.project_id, entityId: h.id },
+    }));
+  }},
+  { key: "variation.eot_unapplied", role: "builder", priority: "medium", async query() {
+    const { data } = await supabase.from("variations").select(`id, project_id, ref, title, eot, eot_days, applied_to_forecast, status, approval_date, ${PROJ}`).eq("status", "approved").eq("eot", true).eq("applied_to_forecast", false);
+    return (data || []).filter(v => Number(v.eot_days) > 0).map(v => mk({
+      type: "variation.eot_unapplied", priority: "medium", role: "builder", project: v.project, since: v.approval_date,
+      description: `${v.ref || "Variation"} approved with a ${v.eot_days}-day extension — apply it to the timeline?`,
+      target: { kind: "timeline", projectId: v.project_id, entityId: v.id },
+    }));
+  }},
+  { key: "milestone.forecast_slip", role: "builder", priority: "medium", async query() {
+    const { data } = await supabase.from("milestones").select(`id, project_id, name, planned_date, forecast_date, done, completed_date, ${PROJ}`);
+    return (data || []).filter(m => !m.done && !m.completed_date && m.planned_date && m.forecast_date && (milestoneVariance(m) || 0) > 3).map(m => mk({
+      type: "milestone.forecast_slip", priority: "medium", role: "builder", project: m.project, since: `${m.planned_date}T00:00:00+10:00`,
+      description: `${m.name} is forecast ${milestoneVariance(m)} days past its baseline`,
+      target: { kind: "timeline", projectId: m.project_id, entityId: m.id },
     }));
   }},
   { key: "receipt.awaiting_confirmation", role: "builder", priority: "low", async query() {
