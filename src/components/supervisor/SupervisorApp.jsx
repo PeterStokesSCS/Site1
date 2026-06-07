@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import ProjectHeader from "../shared/ProjectHeader";
 import ProjectDashboard from "../shared/ProjectDashboard";
+import SupervisorDashboard from "./SupervisorDashboard";
 import OnSiteIndicator from "../shared/OnSiteIndicator";
 import { Skeleton } from "../shared/LoadingScreen";
 import { getProjects, getTasksByProject, getIssues, getHazardsByProject } from "../../lib/db";
+import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import { supabase } from "../../lib/supabase";
 
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -15,10 +17,19 @@ export default function SupervisorApp({ user }) {
   const [stats, setStats] = useState({ onSite: 0, tasks: 0, issues: 0, hazards: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
   const [initialScreen, setInitialScreen] = useState(null);
+  const [showMyDashboard, setShowMyDashboard] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // From an action item targeting a different assigned project: switch project + open the screen.
   const switchToAction = (pid, screenKey) => { setInitialScreen(screenKey); setProjectId(pid); };
+
+  // From the personal dashboard's action queue: resolve the screen, switch project, close overlay.
+  const openActionFromMyDashboard = (item) => {
+    const key = KIND_TO_PROJECT_SCREEN[item.target?.kind];
+    if (!key) return;
+    setShowMyDashboard(false);
+    switchToAction(item.projectId || projectId, key);
+  };
 
   // Persist the last viewed project so the app reopens where the supervisor left off
   const setProjectId = (id) => {
@@ -61,6 +72,15 @@ export default function SupervisorApp({ user }) {
 
   const project = projects.find(p => p.id === projectId);
 
+  if (!loading && showMyDashboard) return (
+    <SupervisorDashboard
+      user={user}
+      projects={projects}
+      onBack={() => setShowMyDashboard(false)}
+      onOpenAction={openActionFromMyDashboard}
+    />
+  );
+
   if (loading || !project) return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <div style={{ padding: "14px 16px", background: "#111", borderBottom: "1px solid #1e1e1e" }}>
@@ -86,6 +106,7 @@ export default function SupervisorApp({ user }) {
           projects={projects}
           user={user}
           onSwitch={projects.length > 1 ? setProjectId : null}
+          onAvatarClick={() => setShowMyDashboard(true)}
           rightSlot={<OnSiteIndicator user={user} project={project} onChange={() => setRefreshKey(k => k + 1)} />}
         />
       }

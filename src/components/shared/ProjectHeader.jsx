@@ -4,7 +4,7 @@ import { HEALTH } from "../../lib/theme";
 // Real Supabase rows use snake_case (job_number); legacy/mock used camelCase (jobNumber).
 const jobNumberOf = (p) => p.job_number ?? p.jobNumber;
 
-export default function ProjectHeader({ project, projects = [], onSwitch, user, rightSlot }) {
+export default function ProjectHeader({ project, projects = [], onSwitch, user, rightSlot, onAvatarClick }) {
   const [showPicker, setShowPicker] = useState(false);
   const health = HEALTH[project.health] || HEALTH.green;
   const switchList = projects.length ? projects : [project];
@@ -25,14 +25,20 @@ export default function ProjectHeader({ project, projects = [], onSwitch, user, 
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {rightSlot}
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: "#e07b39", color: "#0c0c0c",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 1,
-            }}>
+            <button
+              onClick={onAvatarClick || undefined}
+              aria-label={onAvatarClick ? "Open my dashboard" : undefined}
+              style={{
+                width: 32, height: 32, borderRadius: "50%", border: "none",
+                background: "#e07b39", color: "#0c0c0c", padding: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 1,
+                cursor: onAvatarClick ? "pointer" : "default",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
               {user.avatar}
-            </div>
+            </button>
           </div>
         </div>
 

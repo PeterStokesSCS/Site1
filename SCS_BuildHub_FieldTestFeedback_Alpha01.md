@@ -31,9 +31,9 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 | H5 | **Persist last viewed project** — Supervisor reopens app on the project they were last on | Supervisor | ✅ Done |
 | H6 | **Current project indicator** — top corner: project + ON SITE + live timer (green); OFF SITE shows last project (red). Prevents wrong timesheet records | Supervisor | ✅ Done (tap to clock in/out) |
 | H7 | **Project-specific metrics** — On Site / Tasks Due / Issues / Hazards must reflect the selected project only, not company-wide | Supervisor | ⬜ (verify — believed already project-scoped) |
-| H8 | **Supplier/sub auto-complete** on the On Site Company field | Supervisor → On Site | ⬜ |
-| H9 | **Self sign-out sync** — sub signing out on their own login reflects on supervisor muster | On Site | ⬜ |
-| H10 | **On Site history** — Today / History tabs; History = calendar selector → date, attendees, hours, visitor records | Supervisor → On Site | ⬜ |
+| H8 | **Supplier/sub auto-complete** on the On Site Company field | Supervisor → On Site | ✅ Done (datalist from prior site_visits + profiles) |
+| H9 | **Self sign-out sync** — sub signing out on their own login reflects on supervisor muster | On Site | ✅ Done (subby updates own open site_visit) |
+| H10 | **On Site history** — Today / History tabs; History = calendar selector → date, attendees, hours, visitor records | Supervisor → On Site | ✅ Done (date picker filter) |
 | H11 | **Task fields** — add Due Time, attachments (photos / PDFs / drawings). Structure: Title, Assigned To, Priority, Date, Time, Description, Attachments | Tasks | ⬜ |
 | H12 | Daily Log worker numbers auto-populate from On Site attendance (supervisor confirms) | Daily Log | ⬜ |
 | H13 | **Daily Log question-based workflow** — Deliveries? Visitors? Issues/Delays? each YES/NO; NO auto-records "No X", YES opens detail | Daily Log | ⬜ |

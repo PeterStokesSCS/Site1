@@ -58,6 +58,29 @@ export async function getMyTasksToday(workerId) {
   return { data: data || [], error };
 }
 
+// All open tasks assigned to a user across every project they can see (RLS scopes
+// to member projects). Powers the supervisor's personal cross-project dashboard.
+export async function getMyTasks(userId) {
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*, projects(street, job_number)")
+    .eq("assignee_id", userId)
+    .neq("status", "completed")
+    .order("due_date", { ascending: true });
+  return { data: data || [], error };
+}
+
+// A user's own recent timesheets (newest first), for the personal dashboard.
+export async function getMyTimesheets(userId, limit = 30) {
+  const { data, error } = await supabase
+    .from("timesheets")
+    .select("*, project:projects(street, job_number)")
+    .eq("worker_id", userId)
+    .order("clock_in", { ascending: false })
+    .limit(limit);
+  return { data: data || [], error };
+}
+
 export async function updateTaskStatus(id, status) {
   const { error } = await supabase
     .from("tasks")
