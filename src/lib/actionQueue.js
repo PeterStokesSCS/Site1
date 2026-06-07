@@ -7,7 +7,12 @@
 // Access scoping is automatic: these queries run under the user's Supabase session,
 // so Row-Level Security limits each role to its own data.
 import { supabase } from "./supabase";
-import { milestoneVariance } from "./timeline";
+import { milestoneVariance, mustOrderBy, breachesOrderBy, isDeliveryLate, inspectionDueSoon, materialNotOnSite, doubleBooked } from "./timeline";
+
+// Feature guards — flip to true when the corresponding module ships (UI + data).
+// Until then the timeline-engine rules below compute nothing (anti-false-alarm: no module,
+// no data, no risk). Built now so they light up the instant the module lands.
+export const MODULES = { procurement: false, inspections: false, labour: false };
 
 const TZ = "Australia/Melbourne";
 
@@ -172,6 +177,28 @@ export const REGISTRY = [
     }));
   }},
 
+  // ---- Timeline Engine: procurement (GUARDED — dormant until Procurement module exists) ----
+  { key: "procurement.order_by_breach", role: "builder", priority: "high", async query() {
+    if (!MODULES.procurement) return [];
+    const today = melbourneTodayStr();
+    const { data } = await supabase.from("procurement_items").select(`id, project_id, item_name, required_by_date, lead_time_days, ordered_date, status, ${PROJ}`);
+    return (data || []).filter(p => breachesOrderBy(p, today)).map(p => mk({
+      type: "procurement.order_by_breach", priority: "high", role: "builder", project: p.project,
+      since: `${mustOrderBy(p.required_by_date, p.lead_time_days)}T00:00:00+10:00`,
+      description: `${p.item_name} must be ordered now — ${p.lead_time_days}-day lead, needed ${p.required_by_date}`,
+      target: { kind: "procurement", projectId: p.project_id, entityId: p.id },
+    }));
+  }},
+  { key: "procurement.delivery_late", role: "builder", priority: "high", async query() {
+    if (!MODULES.procurement) return [];
+    const { data } = await supabase.from("procurement_items").select(`id, project_id, item_name, ordered_date, expected_delivery_date, required_by_date, actual_delivery_date, status, ${PROJ}`);
+    return (data || []).filter(isDeliveryLate).map(p => mk({
+      type: "procurement.delivery_late", priority: "high", role: "builder", project: p.project, since: p.ordered_date,
+      description: `${p.item_name} delivery (${p.expected_delivery_date}) is after it's needed (${p.required_by_date})`,
+      target: { kind: "procurement", projectId: p.project_id, entityId: p.id },
+    }));
+  }},
+
   // ---- Supervisor (RLS already limits to assigned projects) ----
   { key: "dailylog.outstanding", role: "supervisor", priority: "high", async query() {
     if (melbourneHour() < CONFIG.dailyLogCutoffHour) return [];
@@ -217,6 +244,43 @@ export const REGISTRY = [
       type: "shift.open_too_long", priority: "high", role: "supervisor", project: t.project, since: t.clock_in,
       description: `${t.worker?.full_name || "Worker"} on site ${Math.floor(hoursSince(t.clock_in))}h — still clocked in`,
       target: { kind: "attendance", projectId: t.project_id, entityId: t.id },
+    }));
+  }},
+
+  // ---- Timeline Engine: site execution (GUARDED) ----
+  { key: "task.material_not_on_site", role: "supervisor", priority: "high", async query() {
+    if (!MODULES.procurement) return [];
+    const today = melbourneTodayStr();
+    const { data: tasks } = await supabase.from("tasks").select(`id, project_id, title, start_date, status, depends_on_procurement_ids, ${PROJ}`).neq("status", "completed").not("start_date", "is", null);
+    const ids = [...new Set((tasks || []).flatMap(t => t.depends_on_procurement_ids || []))];
+    if (!ids.length) return [];
+    const { data: procs } = await supabase.from("procurement_items").select("id, actual_delivery_date, status").in("id", ids);
+    const procById = Object.fromEntries((procs || []).map(p => [p.id, p]));
+    return materialNotOnSite(tasks, procById, today).map(t => mk({
+      type: "task.material_not_on_site", priority: "high", role: "supervisor", project: t.project, since: t.start_date,
+      description: `Material not on site for "${t.title}" (starts ${t.start_date})`,
+      target: { kind: "task", projectId: t.project_id, entityId: t.id },
+    }));
+  }},
+  { key: "inspection.due_soon", role: "supervisor", priority: "high", async query() {
+    if (!MODULES.inspections) return [];
+    const today = melbourneTodayStr();
+    const { data } = await supabase.from("qa_items").select(`id, project_id, title, due_date, status, ${PROJ}`);
+    return (data || []).filter(q => inspectionDueSoon(q, today)).map(q => mk({
+      type: "inspection.due_soon", priority: "high", role: "supervisor", project: q.project, since: q.due_date,
+      description: `Inspection due soon: ${q.title} (${q.due_date})`,
+      target: { kind: "inspection", projectId: q.project_id, entityId: q.id },
+    }));
+  }},
+  { key: "labour.double_booked", role: "builder", priority: "medium", async query() {
+    if (!MODULES.labour) return [];
+    const { data } = await supabase.from("labour_allocations").select("id, project_id, worker_or_subby_id, allocation_date");
+    const clashes = doubleBooked(data || []);
+    return clashes.map(c => mk({
+      type: "labour.double_booked", priority: "medium", role: "builder", projectId: null,
+      since: `${c.date}T00:00:00+10:00`,
+      description: `Worker double-booked across projects on ${c.date}`,
+      target: { kind: "labour", entityId: `${c.worker}-${c.date}` },
     }));
   }},
 

@@ -58,3 +58,57 @@ export function addDays(dateStr, days) {
   d.setUTCDate(d.getUTCDate() + Number(days));
   return d.toISOString().slice(0, 10);
 }
+
+// ── Timeline Engine rule logic (pure; ISO 'YYYY-MM-DD' compares chronologically) ──
+// `today` = Melbourne 'YYYY-MM-DD'. Every rule returns nothing when a required input
+// is missing (anti-false-alarm) — it never guesses.
+const D = (x) => x ? String(x).slice(0, 10) : null;
+const ORDERED = (p) => !!p.ordered_date || ["ordered", "delivered", "received"].includes(p.status);
+const DELIVERED = (p) => !!p.actual_delivery_date || ["delivered", "received"].includes(p.status);
+
+export function isWithinDays(dateStr, n, today) {
+  const d = D(dateStr);
+  return !!d && d >= today && d <= addDays(today, n);
+}
+
+// procurement.order_by_breach — needs required-by + lead time, not yet ordered, past must-order-by.
+export function breachesOrderBy(p, today) {
+  if (!p.required_by_date || p.lead_time_days == null) return false; // missing input → silent
+  if (ORDERED(p)) return false;                                       // resolved
+  const mob = mustOrderBy(p.required_by_date, p.lead_time_days);
+  return !!mob && today > mob;
+}
+
+// procurement.delivery_late — ordered, quoted delivery lands after it's needed.
+export function isDeliveryLate(p) {
+  if (!ORDERED(p) || DELIVERED(p)) return false;
+  if (!p.expected_delivery_date || !p.required_by_date) return false;
+  return D(p.expected_delivery_date) > D(p.required_by_date);
+}
+
+// inspection.due_soon — required within N days (default 2), not completed.
+export function inspectionDueSoon(q, today, n = 2) {
+  if (["completed", "approved", "passed"].includes(q.status)) return false;
+  return isWithinDays(q.due_date, n, today);
+}
+
+// task.material_not_on_site — task starts within N days (default 5), depends on undelivered procurement.
+export function materialNotOnSite(tasks, procById, today, n = 5) {
+  return (tasks || []).filter(t => {
+    if (t.status === "completed" || !isWithinDays(t.start_date, n, today)) return false;
+    const deps = t.depends_on_procurement_ids || [];
+    return deps.length > 0 && deps.some(id => { const p = procById[id]; return p && !DELIVERED(p); });
+  });
+}
+
+// labour.double_booked — same person allocated to >1 project on the same date.
+export function doubleBooked(allocations) {
+  const map = {};
+  for (const a of allocations || []) {
+    const k = `${a.worker_or_subby_id}|${D(a.allocation_date)}`;
+    (map[k] = map[k] || new Set()).add(a.project_id);
+  }
+  return Object.entries(map).filter(([, projs]) => projs.size > 1).map(([k]) => {
+    const [worker, date] = k.split("|"); return { worker, date };
+  });
+}
