@@ -669,6 +669,32 @@ export async function removeProjectMember(projectId, userId) {
   return { error };
 }
 
+// ── Profile credentials (licences / certs / qualifications) ─────────────────────
+export async function getProfileCredentials(profileId) {
+  const { data, error } = await supabase
+    .from("profile_credentials")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("expiry_date", { ascending: true, nullsFirst: false });
+  return { data: data || [], error };
+}
+
+export async function addProfileCredential(payload) {
+  const { data, error } = await supabase.from("profile_credentials").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function deleteProfileCredential(id) {
+  const { error } = await supabase.from("profile_credentials").delete().eq("id", id);
+  return { error };
+}
+
+// Total approved hours a worker has logged (for the team-member history).
+export async function getWorkerApprovedHours(workerId) {
+  const { data } = await supabase.from("timesheets").select("hours_worked").eq("worker_id", workerId).eq("status", "approved");
+  return (data || []).reduce((s, t) => s + (Number(t.hours_worked) || 0), 0);
+}
+
 export async function inviteUser(email, fullName, role) {
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName, role },

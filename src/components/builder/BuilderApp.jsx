@@ -8,6 +8,7 @@ import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
 import ProjectDashboard from "../shared/ProjectDashboard";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
+import TeamMemberDetail from "./TeamMemberDetail";
 
 const TABS = [
   { id: "dashboard",  label: "Dashboard",  icon: "⊞" },
@@ -295,6 +296,11 @@ function TeamTab() {
   const [editName, setEditName] = useState(null); // user id whose name is being edited
   const [nameDraft, setNameDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState("all");   // all / internal / subs / clients
+  const [detail, setDetail] = useState(null);     // profile shown in the detail screen
+
+  const GROUP_OF = (role) => role === "subcontractor" ? "subs" : role === "client" ? "clients" : "internal";
+  const FILTERS = [["all", "All"], ["internal", "Internal"], ["subs", "Subcontractors"], ["clients", "Clients"]];
 
   const saveName = async (id) => {
     setSaving(true);
@@ -334,13 +340,20 @@ function TeamTab() {
 
   const ROLES = ["builder", "supervisor", "worker", "subcontractor", "client", "office"];
 
+  if (detail) return <TeamMemberDetail profile={detail} projects={projects} members={members} onBack={() => setDetail(null)} onUpdated={(u) => { setProfiles(prev => prev.map(p => p.id === u.id ? u : p)); setDetail(u); }} />;
+
+  const shownProfiles = profiles.filter(p => filter === "all" || GROUP_OF(p.role) === filter);
+
   return (
     <div>
       <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f0f0", marginBottom: 8 }}>TEAM</div>
-      <div style={{ fontSize: 13, color: "#555", marginBottom: 20 }}>Create users in Supabase Authentication, then set their role and assign them to projects here. Builders and office see every project automatically.</div>
+      <div style={{ fontSize: 13, color: "#555", marginBottom: 14 }}>Create users in Supabase Authentication, then set their role and assign them to projects here. Tap a person for their full profile, licences and history.</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+        {FILTERS.map(([k, l]) => <button key={k} onClick={() => setFilter(k)} style={{ padding: "6px 14px", borderRadius: 16, border: `1px solid ${filter === k ? "#e07b39" : "#2a2a2a"}`, background: filter === k ? "#2a1800" : "transparent", color: filter === k ? "#e07b39" : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{l}</button>)}
+      </div>
       {loading
         ? [1,2,3].map(i => <CardSkeleton key={i} />)
-        : profiles.map(p => {
+        : shownProfiles.map(p => {
           const isAdmin = p.role === "builder" || p.role === "office";
           const assignedIds = memberProjectIds(p.id);
           return (
@@ -374,6 +387,7 @@ function TeamTab() {
               </div>
               {editing !== p.id && (
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => setDetail(p)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#e07b39", fontSize: 12, cursor: "pointer" }}>Profile</button>
                   {!isAdmin && <button onClick={() => setAssigning(assigning === p.id ? null : p.id)} style={{ padding: "6px 12px", borderRadius: 6, border: `1px solid ${assigning === p.id ? "#e07b39" : "#2a2a2a"}`, background: "transparent", color: assigning === p.id ? "#e07b39" : "#666", fontSize: 12, cursor: "pointer" }}>Projects</button>}
                   <button onClick={() => setEditing(p.id)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#666", fontSize: 12, cursor: "pointer" }}>Role</button>
                 </div>
