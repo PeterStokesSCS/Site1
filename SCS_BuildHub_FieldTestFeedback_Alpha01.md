@@ -17,7 +17,7 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 | # | Item | Area | Status |
 |---|---|---|---|
 | C1 | **Task creation fails / saves nothing** | Supervisor → Tasks | ✅ Fixed (empty-string UUID + swallowed error) |
-| C2 | **Project Dashboard navigation** — clicking a project (Builder *and* Supervisor) opens a dedicated Project Dashboard: Overview, Plans, Daily Logs, Tasks, Safety, Variations, Photos, Communication, Financials | Builder → Projects | ⬜ |
+| C2 | **Project Dashboard navigation** — clicking a project (Builder *and* Supervisor) opens a dedicated Project Dashboard: Overview, Plans, Daily Logs, Tasks, Safety, Variations, Photos, Communication, Financials | Builder → Projects | ✅ Done (shared ProjectDashboard; builder now has project-centric header + switcher) |
 | C3 | **On Site sign-out** — each on-site person gets a SIGN OUT action → confirmation dialog → review/adjust time → confirm; system calculates total hours | Supervisor → On Site | ✅ Done (workers + visitors/subs) |
 | C4 | **Variations as a legally defensible record** — timestamp, user, photos, attachments, scope, cost impact, client approval, digital signature, approval date, revision history | Commercial | ⬜ |
 
@@ -44,7 +44,7 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 | # | Item | Area | Status |
 |---|---|---|---|
 | M1 | **Labour tab** redefined as workforce/reporting: Timesheets, Attendance, Labour Allocation, Budget vs Actual, Productivity | Builder → Labour | ⬜ (design needed) |
-| M2 | **Supervisor profile button** (orange avatar) opens a personal Supervisor Dashboard: assigned tasks, outstanding actions, upcoming inspections, team notifications, personal timesheets, approvals — separate from project items | Supervisor | ⬜ |
+| M2 | **Supervisor profile button** (orange avatar) opens a personal Supervisor Dashboard: assigned tasks, outstanding actions, upcoming inspections, team notifications, personal timesheets, approvals — separate from project items | Supervisor | ✅ Done (avatar → My Dashboard: cross-project actions, my time, my tasks) |
 | M3 | **Weather API** in Daily Log — forecast, temp, rainfall, conditions (replaces manual) | Daily Log | ⬜ |
 
 ## LOW

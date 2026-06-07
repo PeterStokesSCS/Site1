@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase";
 import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
 import ProjectDashboard from "../shared/ProjectDashboard";
+import ProjectHeader from "../shared/ProjectHeader";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import TeamMemberDetail from "./TeamMemberDetail";
@@ -455,9 +456,30 @@ export default function BuilderApp({ user }) {
     setTimesheets(prev => prev.map(t => t.id === id ? { ...t, status: "approved" } : t));
   };
 
-  // Opening a project takes over the full screen with its Project Dashboard
+  // Opening a project takes over the full screen with its Project Dashboard.
+  // Give the builder the same project-centric header as the supervisor, incl. an
+  // in-context switcher so they can hop between jobs without returning to the list.
   if (openProject) {
-    return <ProjectDashboard project={openProject} user={user} initialScreen={initialScreen} onBack={() => setOpenProject(null)} />;
+    const switchProject = (id) => { const p = projects.find(x => x.id === id); if (p) { setInitialScreen(null); setOpenProject(p); } };
+    return (
+      <ProjectDashboard
+        key={openProject.id}
+        project={openProject}
+        user={user}
+        maxWidth={560}
+        initialScreen={initialScreen}
+        onSwitchProject={(pid, key) => { setInitialScreen(key); setOpenProject(projects.find(x => x.id === pid) || openProject); }}
+        onBack={() => setOpenProject(null)}
+        header={
+          <ProjectHeader
+            project={openProject}
+            projects={projects}
+            user={user}
+            onSwitch={projects.length > 1 ? switchProject : null}
+          />
+        }
+      />
+    );
   }
 
   const renderTab = () => {
