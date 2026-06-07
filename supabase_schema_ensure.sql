@@ -306,5 +306,53 @@ alter table notification_log enable row level security;
 drop policy if exists "notification_log_all" on notification_log;
 create policy "notification_log_all" on notification_log for all to authenticated using (true);
 
+-- ── TIMELINE ENGINE (Phase 2) — baseline/forecast + relationships ───────────────
+-- Milestone baseline (planned) + maintained forecast. label≈name, sequence≈sort_order,
+-- actual≈completed_date already exist; status is DERIVED (never stored).
+alter table milestones add column if not exists key text;
+alter table milestones add column if not exists planned_date date;
+alter table milestones add column if not exists forecast_date date;
+
+-- Task scheduling + finish-to-start relationships + material dependency.
+alter table tasks add column if not exists start_date date;
+alter table tasks add column if not exists predecessor_task_id uuid references tasks;
+alter table tasks add column if not exists blocks_milestone_id uuid references milestones;
+alter table tasks add column if not exists depends_on_procurement_ids uuid[];
+
+-- Procurement lead-time + links (the relationship layer the order-by rule needs).
+alter table procurement_items add column if not exists lead_time_days int;
+alter table procurement_items add column if not exists linked_task_id uuid references tasks;
+alter table procurement_items add column if not exists linked_milestone_id uuid references milestones;
+
+-- Variation EOT → forecast application flag (eot_days already = time_impact_days).
+alter table variations add column if not exists applied_to_forecast boolean default false;
+
+-- QA/inspection milestone link.
+alter table qa_items add column if not exists linked_milestone_id uuid references milestones;
+
+-- Audit of confirmed forecast changes (substantiates EOT claims later).
+create table if not exists forecast_changes (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid references projects on delete cascade,
+  milestone_id uuid references milestones,
+  source text,            -- 'variation_eot' | 'manual_slip' | ...
+  source_id uuid,         -- e.g. the variation id
+  days int,
+  reason text,
+  confirmed_by uuid references profiles,
+  created_at timestamptz default now()
+);
+alter table forecast_changes enable row level security;
+drop policy if exists "forecast_changes_read" on forecast_changes;
+create policy "forecast_changes_read" on forecast_changes for select to authenticated using (
+  project_id in (select project_id from project_members where user_id = auth.uid())
+  or exists (select 1 from profiles where id = auth.uid() and role in ('builder','office')));
+drop policy if exists "forecast_changes_write" on forecast_changes;
+create policy "forecast_changes_write" on forecast_changes for all to authenticated
+  using (project_id in (select project_id from project_members where user_id = auth.uid())
+         or exists (select 1 from profiles where id = auth.uid() and role in ('builder','office')))
+  with check (project_id in (select project_id from project_members where user_id = auth.uid())
+         or exists (select 1 from profiles where id = auth.uid() and role in ('builder','office')));
+
 -- ── Refresh the API schema cache ────────────────────────────────
 notify pgrst, 'reload schema';

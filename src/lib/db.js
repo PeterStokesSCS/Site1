@@ -437,6 +437,36 @@ export async function getMilestones(projectId) {
   return { data: data || [], error };
 }
 
+// Seed the VIC stage skeleton for a new project (no-op if any milestones already exist).
+export async function seedProjectMilestones(projectId, skeleton) {
+  const { data: existing } = await supabase.from("milestones").select("id").eq("project_id", projectId).limit(1);
+  if (existing && existing.length) return { data: null, skipped: true };
+  const rows = skeleton.map(m => ({ project_id: projectId, key: m.key, name: m.label, sort_order: m.sequence }));
+  const { data, error } = await supabase.from("milestones").insert(rows).select();
+  return { data, error };
+}
+
+export async function createMilestone(payload) {
+  const { data, error } = await supabase.from("milestones").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function updateMilestone(id, patch) {
+  const { data, error } = await supabase.from("milestones").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
+export async function deleteMilestone(id) {
+  const { error } = await supabase.from("milestones").delete().eq("id", id);
+  return { error };
+}
+
+// Audit a confirmed forecast change (for EOT substantiation).
+export async function recordForecastChange(payload) {
+  const { data, error } = await supabase.from("forecast_changes").insert(payload).select().single();
+  return { data, error };
+}
+
 // ── Subbie variation requests ──────────────────────────────────────────────────
 export async function createSubbieRequest(payload) {
   const { data, error } = await supabase.from("subbie_requests").insert(payload).select().single();

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones } from "../../lib/db";
+import { VIC_MILESTONES } from "../../lib/timeline";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
 import { HEALTH } from "../../lib/theme";
@@ -113,6 +114,8 @@ function ProjectsTab({ projects, onProjectCreated, initialFilter, onOpenProject 
     setSaving(true); setError(null);
     const { data, error } = await createProject({ ...form, budget: parseFloat(form.budget) || null });
     if (error) { setError(error.message); setSaving(false); return; }
+    // Seed the Victorian stage-milestone skeleton for the new project.
+    seedProjectMilestones(data.id, VIC_MILESTONES).catch(() => {});
     onProjectCreated(data);
     setShowForm(false);
     setForm({ job_number: "", street: "", suburb: "", client_name: "", client_email: "", client_phone: "", budget: "", phase: "Planning", status: "planning", health: "green" });
