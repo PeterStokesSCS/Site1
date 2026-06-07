@@ -467,6 +467,31 @@ export async function recordForecastChange(payload) {
   return { data, error };
 }
 
+// ── Inspections / QA ────────────────────────────────────────────────────────────
+export async function getQaItems(projectId) {
+  const { data, error } = await supabase
+    .from("qa_items")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("due_date", { ascending: true, nullsFirst: false });
+  return { data: data || [], error };
+}
+
+export async function createQaItem(payload) {
+  const { data, error } = await supabase.from("qa_items").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function updateQaItem(id, patch) {
+  const { data, error } = await supabase.from("qa_items").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
+export async function deleteQaItem(id) {
+  const { error } = await supabase.from("qa_items").delete().eq("id", id);
+  return { error };
+}
+
 // ── Procurement (materials / ordering / delivery tracking) ──────────────────────
 export async function getProcurementItems(projectId) {
   const { data, error } = await supabase
