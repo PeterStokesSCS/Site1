@@ -139,6 +139,24 @@ alter table commercial_items enable row level security;
 drop policy if exists "commercial_items_all" on commercial_items;
 create policy "commercial_items_all" on commercial_items for all to authenticated using (true);
 
+-- ── LABOUR COST RATES (CONFIDENTIAL — builder/office only) ───────
+-- Pay rates must not leak via the broadly-readable profiles table, so they live
+-- in their own table whose RLS is restricted to builder/office.
+create table if not exists labour_rates (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid references profiles on delete cascade unique,
+  hourly_rate numeric,
+  updated_at timestamptz default now()
+);
+alter table labour_rates enable row level security;
+drop policy if exists "labour_rates_admin" on labour_rates;
+create policy "labour_rates_admin" on labour_rates for all to authenticated
+  using (exists (select 1 from profiles where id = auth.uid() and role in ('builder','office')))
+  with check (exists (select 1 from profiles where id = auth.uid() and role in ('builder','office')));
+
+-- Per-project labour budget (for Budget vs Actual). Same sensitivity as projects.budget.
+alter table projects add column if not exists labour_budget numeric;
+
 -- ── COMMENTS (task + issue) ─────────────────────────────────────
 create table if not exists task_comments (
   id uuid primary key default gen_random_uuid(),

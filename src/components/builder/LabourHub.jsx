@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { EmptyState } from "../shared/LoadingScreen";
-import { getAllProjectMembers, getProfiles } from "../../lib/db";
+import { getAllProjectMembers, getProfiles, getLabourRates, upsertLabourRate, updateProject } from "../../lib/db";
 
 // §M1 Labour — workforce / reporting hub. Hours-only (no pay rates / no $),
 // all derived from existing timesheets + project_members. Four sections:
@@ -247,6 +247,114 @@ function HoursView({ timesheets, projects }) {
   );
 }
 
+// ── Budget vs Actual (labour $ — needs pay rates) ───────────────────────────────
+const money = (n) => (n || n === 0) ? `$${Math.round(Number(n)).toLocaleString()}` : "—";
+
+function BudgetView({ timesheets, projects }) {
+  const [rates, setRates] = useState(null);                       // { profileId: hourly_rate }
+  const [budgets, setBudgets] = useState(() => Object.fromEntries(projects.map(p => [p.id, p.labour_budget ?? ""])));
+
+  useEffect(() => {
+    getLabourRates().then(({ data }) => setRates(Object.fromEntries((data || []).map(r => [r.profile_id, r.hourly_rate]))));
+  }, []);
+
+  // Distinct workers with their total hours (all time).
+  const workers = Object.values(timesheets.reduce((acc, t) => {
+    const id = t.worker_id; if (!id) return acc;
+    const w = acc[id] || (acc[id] = { id, name: t.worker?.full_name || "Worker", hours: 0 });
+    w.hours += shiftHours(t);
+    return acc;
+  }, {})).sort((a, b) => b.hours - a.hours);
+
+  const rateOf = (id) => Number((rates || {})[id]) || 0;
+  const saveRate = async (id, val) => {
+    const num = val === "" ? null : Number(val);
+    setRates(r => ({ ...r, [id]: num }));
+    await upsertLabourRate(id, num);
+  };
+  const saveBudget = async (pid, val) => {
+    const num = val === "" ? null : Number(val);
+    setBudgets(b => ({ ...b, [pid]: val }));
+    await updateProject(pid, { labour_budget: num });
+  };
+
+  // Actual labour cost per project = Σ hours × that worker's rate.
+  const actualByProject = {};
+  timesheets.forEach(t => { actualByProject[t.project_id] = (actualByProject[t.project_id] || 0) + shiftHours(t) * rateOf(t.worker_id); });
+
+  const anyRates = rates && Object.values(rates).some(v => v);
+  const projWithActivity = projects.filter(p => (actualByProject[p.id] || 0) > 0 || (budgets[p.id] !== "" && budgets[p.id] != null));
+
+  return (
+    <div>
+      <div style={sectionLbl}>Budget vs Actual</div>
+      {!anyRates && <div style={{ ...card, borderColor: "#33270a", background: "#1a1407", color: "#e0b050", fontSize: 13 }}>Set an hourly cost rate for your workers below — actual labour cost is hours × rate. Rates are internal and only visible to builder/office.</div>}
+
+      {/* Per-project budget vs actual */}
+      {projWithActivity.length === 0 ? <EmptyState icon="💰" title="No labour cost yet" subtitle="Set a labour budget on a project and cost rates on your workers" />
+        : projWithActivity.map(p => {
+          const actual = Math.round(actualByProject[p.id] || 0);
+          const budget = Number(budgets[p.id]) || 0;
+          const pct = budget > 0 ? Math.min(100, Math.round((actual / budget) * 100)) : 0;
+          const over = budget > 0 && actual > budget;
+          const barColor = !budget ? "#444" : over ? "#ef4444" : pct >= 85 ? "#f59e0b" : "#22c55e";
+          return (
+            <div key={p.id} style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 17, color: "#f0f0f0", textTransform: "uppercase" }}>{p.street}</span>
+                <span style={{ fontSize: 11, color: "#666" }}>{p.job_number || ""}</span>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, color: "#777", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 4 }}>Labour budget $</div>
+                  <input type="number" defaultValue={budgets[p.id]} onBlur={e => saveBudget(p.id, e.target.value)} placeholder="0" style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, color: "#777", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 4 }}>Actual labour cost</div>
+                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, color: over ? "#ef4444" : "#e07b39", padding: "6px 0" }}>{money(actual)}</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, color: "#777", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 4 }}>{over ? "Over by" : "Remaining"}</div>
+                  <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, color: over ? "#ef4444" : "#22c55e", padding: "6px 0" }}>{budget ? money(Math.abs(budget - actual)) : "—"}</div>
+                </div>
+              </div>
+              {budget > 0 && (
+                <>
+                  <div style={{ height: 6, background: "#222", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3 }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>{pct}% of budget used{over ? " · OVER BUDGET" : ""}</div>
+                </>
+              )}
+            </div>
+          );
+        })}
+
+      {/* Hourly cost rates */}
+      <div style={card}>
+        <div style={sectionLbl}>Hourly cost rates · internal</div>
+        {rates === null ? <div style={{ height: 40, background: "#1a1a1a", borderRadius: 8 }} />
+          : workers.length === 0 ? <div style={{ fontSize: 12, color: "#555" }}>No worker hours recorded yet.</div>
+          : workers.map(w => (
+            <div key={w.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: "1px solid #1a1a1a" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: "#ccc" }}>{w.name}</div>
+                <div style={{ fontSize: 11, color: "#555" }}>{round1(w.hours)}h logged · {money(round1(w.hours) * rateOf(w.id))} cost</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <span style={{ color: "#666", fontSize: 13 }}>$</span>
+                <input type="number" defaultValue={(rates || {})[w.id] ?? ""} onBlur={e => saveRate(w.id, e.target.value)} placeholder="0" style={{ ...inp, width: 80, textAlign: "right" }} />
+                <span style={{ color: "#666", fontSize: 12 }}>/hr</span>
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+const inp = { width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "9px 11px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", colorScheme: "dark" };
+
 // ── Hub shell ───────────────────────────────────────────────────────────────────
 export default function LabourHub({ timesheets = [], projects = [], onApprove, user }) {
   const [view, setView] = useState(null);
@@ -266,6 +374,7 @@ export default function LabourHub({ timesheets = [], projects = [], onApprove, u
   if (view === "attendance") return <Wrap onBack={() => setView(null)}><AttendanceView timesheets={timesheets} /></Wrap>;
   if (view === "allocation") return <Wrap onBack={() => setView(null)}><AllocationView timesheets={timesheets} projects={projects} members={members} profiles={profiles} /></Wrap>;
   if (view === "hours") return <Wrap onBack={() => setView(null)}><HoursView timesheets={timesheets} projects={projects} /></Wrap>;
+  if (view === "budget") return <Wrap onBack={() => setView(null)}><BudgetView timesheets={timesheets} projects={projects} /></Wrap>;
 
   return (
     <div>
@@ -275,6 +384,7 @@ export default function LabourHub({ timesheets = [], projects = [], onApprove, u
       <HubTile icon="👷" label="Attendance" subtitle="Who was on site, by day & hours" onClick={() => setView("attendance")} />
       <HubTile icon="🗂" label="Labour Allocation" subtitle={`Who's on which project · ${onSiteNow} on site now`} onClick={() => setView("allocation")} />
       <HubTile icon="⏱" label="Hours Report" subtitle={`Actual hours by project & worker · ${weekHours}h this week`} onClick={() => setView("hours")} />
+      <HubTile icon="💰" label="Budget vs Actual" subtitle="Labour budget vs actual cost (hours × rate)" onClick={() => setView("budget")} />
     </div>
   );
 }

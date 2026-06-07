@@ -702,6 +702,21 @@ export async function removeProjectMember(projectId, userId) {
   return { error };
 }
 
+// ── Labour cost rates (CONFIDENTIAL — builder/office only via RLS) ──────────────
+export async function getLabourRates() {
+  const { data, error } = await supabase.from("labour_rates").select("*");
+  return { data: data || [], error };
+}
+
+export async function upsertLabourRate(profileId, hourlyRate) {
+  const { data, error } = await supabase
+    .from("labour_rates")
+    .upsert({ profile_id: profileId, hourly_rate: hourlyRate, updated_at: new Date().toISOString() }, { onConflict: "profile_id" })
+    .select()
+    .single();
+  return { data, error };
+}
+
 // ── Profile credentials (licences / certs / qualifications) ─────────────────────
 export async function getProfileCredentials(profileId) {
   const { data, error } = await supabase
