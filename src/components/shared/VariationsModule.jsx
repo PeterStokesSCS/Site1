@@ -369,7 +369,7 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, nam
               <div style={SECT}>Client approval</div>
               <div style={{ fontSize: 11, color: "#666", marginBottom: 10 }}>By signing below you confirm your acceptance of this variation, including the adjusted scope, cost, and time impact.</div>
               <div style={{ display: "flex", gap: 12, fontSize: 12 }}>
-                <div style={{ flex: 1 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26, color: "#1c1c1c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>{v.client_signature || ""}</div><div style={labelStyle}>Signature</div></div>
+                <div style={{ flex: 1 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26, color: "#1c1c1c", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, display: "flex", alignItems: "flex-end" }}>{v.signature_image ? <img src={v.signature_image} alt="Signature" style={{ maxHeight: 40, maxWidth: "100%" }} /> : (v.client_signature || "")}</div><div style={labelStyle}>Signature</div></div>
                 <div style={{ flex: 1 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26 }}>{v.client_signature || ""}</div><div style={labelStyle}>Full name</div></div>
                 <div style={{ width: 110 }}><div style={{ borderBottom: "1px solid #999", minHeight: 26 }}>{v.approval_date ? new Date(v.approval_date).toLocaleDateString("en-AU") : ""}</div><div style={labelStyle}>Date</div></div>
               </div>

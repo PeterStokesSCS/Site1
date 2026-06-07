@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AppTile from "../shared/AppTile";
 import BackHeader from "../shared/BackHeader";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
@@ -148,11 +148,66 @@ function DocumentsScreen({ project, onBack }) {
   );
 }
 
+// ── Drawn-signature pad (canvas) — strengthens the typed electronic signature ──
+function SignaturePad({ onChange }) {
+  const canvasRef = useRef(null);
+  const drawing = useRef(false);
+  const last = useRef(null);
+  const [hasInk, setHasInk] = useState(false);
+
+  // Map a pointer event to canvas pixel coordinates (canvas is upscaled for DPI).
+  const pos = (e) => {
+    const c = canvasRef.current;
+    const r = c.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
+  };
+  const start = (e) => { e.preventDefault(); drawing.current = true; last.current = pos(e); };
+  const move = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const c = canvasRef.current; const ctx = c.getContext("2d");
+    const p = pos(e);
+    ctx.strokeStyle = "#f0f0f0"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(last.current.x, last.current.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last.current = p;
+    if (!hasInk) setHasInk(true);
+  };
+  const end = () => {
+    if (!drawing.current) return;
+    drawing.current = false;
+    if (hasInk) onChange(canvasRef.current.toDataURL("image/png"));
+  };
+  const clear = () => {
+    const c = canvasRef.current; c.getContext("2d").clearRect(0, 0, c.width, c.height);
+    setHasInk(false); onChange(null);
+  };
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <label style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif" }}>Draw your signature (optional)</label>
+        {hasInk && <button onClick={clear} style={{ background: "transparent", border: "none", color: "#e07b39", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif" }}>Clear</button>}
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={880}
+        height={240}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerLeave={end}
+        style={{ width: "100%", height: 120, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, touchAction: "none", cursor: "crosshair", display: "block" }}
+      />
+    </div>
+  );
+}
+
 // ── Variation digital sign-off modal (legal layer) ─────────────────────────────
 function SignOffModal({ variation, user, onClose, onDone }) {
   const [name, setName] = useState(user?.name || "");
   const [mode, setMode] = useState(null); // 'approve' | 'reject'
   const [reason, setReason] = useState("");
+  const [drawnSig, setDrawnSig] = useState(null); // data URL of drawn signature, if any
   const [saving, setSaving] = useState(false);
   const v = variation;
 
@@ -170,7 +225,7 @@ function SignOffModal({ variation, user, onClose, onDone }) {
     const history = [...(v.revision_history || []), {
       action: decision, by: name.trim(), at: nowIso, ...(ip ? { ip } : {}), ...(decision === "rejected" && reason.trim() ? { reason: reason.trim() } : {}),
     }];
-    const meta = { approval_device: device, approval_ip: ip, approval_statement_accepted: true, approved_version: v.ref || null };
+    const meta = { approval_device: device, approval_ip: ip, approval_statement_accepted: true, approved_version: v.ref || null, ...(drawnSig ? { signature_image: drawnSig } : {}) };
     const patch = decision === "approved"
       ? { status: "approved", client_approved: true, client_signature: name.trim(), approval_date: nowIso, revision_history: history, ...meta }
       : { status: "rejected", client_approved: false, client_signature: name.trim(), approval_date: nowIso, revision_history: history, ...meta };
@@ -212,6 +267,8 @@ function SignOffModal({ variation, user, onClose, onDone }) {
 
         <label style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif" }}>Type your full name to sign</label>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Your full legal name" style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 16, padding: "12px 14px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", margin: "6px 0 14px" }} />
+
+        <SignaturePad onChange={setDrawnSig} />
 
         {mode === "reject" && (
           <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason for declining (optional)" rows={2} style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "10px 12px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", marginBottom: 14, resize: "vertical" }} />
@@ -271,6 +328,7 @@ function VariationsScreen({ project, user, onBack }) {
                 {v.client_approved && (
                   <div style={{ marginTop: 10, background: "#06200e", border: "1px solid #22c55e44", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "#9ae6b4" }}>
                     ✓ You approved this — signed <b>{v.client_signature}</b>{v.approval_date ? ` on ${new Date(v.approval_date).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                    {v.signature_image && <img src={v.signature_image} alt="Your signature" style={{ display: "block", maxHeight: 44, marginTop: 8, background: "#fff", borderRadius: 4, padding: 4 }} />}
                   </div>
                 )}
                 {v.status === "rejected" && !v.client_approved && v.client_signature && (

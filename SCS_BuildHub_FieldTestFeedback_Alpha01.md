@@ -19,7 +19,7 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 | C1 | **Task creation fails / saves nothing** | Supervisor → Tasks | ✅ Fixed (empty-string UUID + swallowed error) |
 | C2 | **Project Dashboard navigation** — clicking a project (Builder *and* Supervisor) opens a dedicated Project Dashboard: Overview, Plans, Daily Logs, Tasks, Safety, Variations, Photos, Communication, Financials | Builder → Projects | ✅ Done (shared ProjectDashboard; builder now has project-centric header + switcher) |
 | C3 | **On Site sign-out** — each on-site person gets a SIGN OUT action → confirmation dialog → review/adjust time → confirm; system calculates total hours | Supervisor → On Site | ✅ Done (workers + visitors/subs) |
-| C4 | **Variations as a legally defensible record** — timestamp, user, photos, attachments, scope, cost impact, client approval, digital signature, approval date, revision history | Commercial | ⬜ |
+| C4 | **Variations as a legally defensible record** — timestamp, user, photos, attachments, scope, cost impact, client approval, digital signature, approval date, revision history | Commercial | ✅ Done (Variation epic: full audit trail, status workflow, typed **+ drawn** signature w/ IP/device metadata, revisions Rev A/B, signed-PDF, DBC Act 1995 wording) |
 
 ## HIGH
 | # | Item | Area | Status |
