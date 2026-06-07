@@ -12,7 +12,7 @@ import { milestoneVariance, mustOrderBy, breachesOrderBy, isDeliveryLate, inspec
 // Feature guards — flip to true when the corresponding module ships (UI + data).
 // Until then the timeline-engine rules below compute nothing (anti-false-alarm: no module,
 // no data, no risk). Built now so they light up the instant the module lands.
-export const MODULES = { procurement: false, inspections: false, labour: false };
+export const MODULES = { procurement: true, inspections: false, labour: false };
 
 const TZ = "Australia/Melbourne";
 
@@ -84,7 +84,7 @@ const PROJ = "project:projects(id, job_number, street)";
 export const KIND_TO_PROJECT_SCREEN = {
   variation: "variations", task: "tasks", hazard: "safety", issue: "issues",
   dailylog: "dailyLog", attendance: "attendance", commercial: "commercial", po: "commercial",
-  timeline: "timeline",
+  timeline: "timeline", procurement: "commercial",
 };
 
 // ── Predicate registry ─────────────────────────────────────────────────────────

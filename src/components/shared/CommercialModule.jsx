@@ -6,6 +6,7 @@ import { extractReceipt } from "../../lib/ai";
 import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations } from "../../lib/db";
 import VariationsList from "./VariationsModule";
 import BuilderPosScreen from "./PurchaseOrdersModule";
+import ProcurementModule from "./ProcurementModule";
 
 function AttachLink({ url }) {
   if (!url) return null;
@@ -25,6 +26,7 @@ const CATEGORIES = [
   { key: "invoice",        label: "Invoices",        icon: "💳", accent: "#10b981" },
   { key: "receipt",        label: "Receipts",        icon: "🧮", accent: "#14b8a6" },
   { key: "variation",      label: "Variations",      icon: "±",  accent: "#6366f1" },
+  { key: "procurement",    label: "Procurement",     icon: "📦", accent: "#0ea5e9" },
   { key: "subbie_pos",     label: "Subbie POs",      icon: "🧾", accent: "#0ea5e9" },
   { key: "cost",           label: "Cost Tracking",   icon: "💰", accent: "#d97706" },
 ];
@@ -238,6 +240,7 @@ export default function CommercialModule({ project, user, onBack }) {
   if (view) {
     const props = { project, user, onBack: () => setView(null) };
     if (view === "variation") return <VariationsList {...props} />;
+    if (view === "procurement") return <ProcurementModule {...props} />;
     if (view === "subbie_pos") return <BuilderPosScreen {...props} />;
     if (view === "cost") return <CostTracking {...props} />;
     const category = CATEGORIES.find(c => c.key === view);

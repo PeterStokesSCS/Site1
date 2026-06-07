@@ -467,6 +467,31 @@ export async function recordForecastChange(payload) {
   return { data, error };
 }
 
+// ── Procurement (materials / ordering / delivery tracking) ──────────────────────
+export async function getProcurementItems(projectId) {
+  const { data, error } = await supabase
+    .from("procurement_items")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("required_by_date", { ascending: true, nullsFirst: false });
+  return { data: data || [], error };
+}
+
+export async function createProcurementItem(payload) {
+  const { data, error } = await supabase.from("procurement_items").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function updateProcurementItem(id, patch) {
+  const { data, error } = await supabase.from("procurement_items").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
+export async function deleteProcurementItem(id) {
+  const { error } = await supabase.from("procurement_items").delete().eq("id", id);
+  return { error };
+}
+
 // ── Subbie variation requests ──────────────────────────────────────────────────
 export async function createSubbieRequest(payload) {
   const { data, error } = await supabase.from("subbie_requests").insert(payload).select().single();
