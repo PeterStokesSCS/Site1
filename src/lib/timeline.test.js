@@ -1,6 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { VIC_MILESTONES, daysBetween, milestoneVariance, milestoneStatus, mustOrderBy, addDays, eotAffectedMilestones,
-  isWithinDays, breachesOrderBy, isDeliveryLate, inspectionDueSoon, materialNotOnSite, doubleBooked } from "./timeline";
+  isWithinDays, breachesOrderBy, isDeliveryLate, inspectionDueSoon, materialNotOnSite, doubleBooked, lookaheadBucket } from "./timeline";
+
+describe("lookaheadBucket", () => {
+  const t = "2025-06-15";
+  it("today / tomorrow", () => {
+    expect(lookaheadBucket("2025-06-15", t)).toBe("today");
+    expect(lookaheadBucket("2025-06-16", t)).toBe("tomorrow");
+  });
+  it("this week (2–7 days out)", () => expect(lookaheadBucket("2025-06-20", t)).toBe("thisWeek"));
+  it("next week (8–14 days out)", () => expect(lookaheadBucket("2025-06-25", t)).toBe("nextWeek"));
+  it("null when past or beyond 2 weeks", () => {
+    expect(lookaheadBucket("2025-06-10", t)).toBeNull();
+    expect(lookaheadBucket("2025-07-15", t)).toBeNull();
+  });
+});
 
 const TODAY = "2025-06-15";
 

@@ -71,6 +71,17 @@ export function isWithinDays(dateStr, n, today) {
   return !!d && d >= today && d <= addDays(today, n);
 }
 
+// Supervisor lookahead bucket for a date: today / tomorrow / thisWeek / nextWeek / null.
+export function lookaheadBucket(dateStr, today) {
+  const d = D(dateStr);
+  if (!d) return null;
+  if (d === today) return "today";
+  if (d === addDays(today, 1)) return "tomorrow";
+  if (d > addDays(today, 1) && d <= addDays(today, 7)) return "thisWeek";
+  if (d > addDays(today, 7) && d <= addDays(today, 14)) return "nextWeek";
+  return null;
+}
+
 // procurement.order_by_breach — needs required-by + lead time, not yet ordered, past must-order-by.
 export function breachesOrderBy(p, today) {
   if (!p.required_by_date || p.lead_time_days == null) return false; // missing input → silent

@@ -15,6 +15,7 @@ import VariationsList from "./VariationsModule";
 import PhotosScreen from "./PhotosScreen";
 import ProjectDocsScreen from "./ProjectDocsScreen";
 import TimelineScreen from "./TimelineScreen";
+import LookaheadScreen from "./LookaheadScreen";
 
 // §7 Project Dashboard — the project becomes its own workspace.
 // Shared by Builder (drill-in from project list) and Supervisor (home screen).
@@ -93,7 +94,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "plans":         return <ProjectDocsScreen {...props} />;
       case "photos":        return <PhotosScreen {...props} />;
       case "commercial":    return <CommercialModule {...props} />;
-      case "timeline":      return <TimelineScreen {...props} />;
+      case "timeline":      return user?.role === "supervisor" ? <LookaheadScreen {...props} /> : <TimelineScreen {...props} />;
       default: break;
     }
   }

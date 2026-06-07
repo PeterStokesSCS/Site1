@@ -68,6 +68,12 @@ function ProgressScreen({ project, onBack }) {
 
   useEffect(() => { getMilestones(project.id).then(({ data }) => { setMilestones(data); setLoading(false); }); }, [project.id]);
 
+  const sorted = [...milestones].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const currentStage = sorted.find(m => !m.done && !m.completed_date);
+  const nextStage = currentStage ? sorted[sorted.indexOf(currentStage) + 1] : null;
+  const forecastCompletion = sorted.reduce((acc, m) => { const d = m.forecast_date || m.planned_date; return d && (!acc || d > acc) ? d : acc; }, null);
+  const fmtD = (d) => d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <BackHeader title="Progress" subtitle={project.street} onBack={onBack} />
@@ -80,8 +86,10 @@ function ProgressScreen({ project, onBack }) {
           <div style={{ height: 10, background: "#222", borderRadius: 5, overflow: "hidden", marginBottom: 16 }}>
             <div style={{ height: "100%", width: `${project.progress || 0}%`, background: "#e07b39", borderRadius: 5, transition: "width 0.5s" }} />
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#666", marginBottom: milestones.length ? 20 : 0 }}>
-            <span>Current stage: <strong style={{ color: "#ccc" }}>{project.phase || "—"}</strong></span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "#888", marginBottom: milestones.length ? 20 : 0 }}>
+            <span>Current stage: <strong style={{ color: "#ccc" }}>{currentStage?.name || project.phase || "—"}</strong></span>
+            {nextStage && <span>Next up: <strong style={{ color: "#aaa" }}>{nextStage.name}</strong></span>}
+            {forecastCompletion && <span>Estimated completion: <strong style={{ color: "#aaa" }}>{fmtD(forecastCompletion)}</strong></span>}
           </div>
           {milestones.length > 0 && <MilestoneBar milestones={milestones} />}
         </div>
@@ -93,13 +101,16 @@ function ProgressScreen({ project, onBack }) {
         ) : (
           <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px" }}>
             <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Milestone Detail</div>
-            {milestones.map((m) => (
+            {milestones.map((m) => {
+              const isCurrent = currentStage && m.id === currentStage.id;
+              return (
               <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: "1px solid #1a1a1a" }}>
-                <span style={{ color: m.done ? "#e07b39" : "#333", fontSize: 16, flexShrink: 0 }}>{m.done ? "✓" : "○"}</span>
-                <span style={{ fontSize: 14, color: m.done ? "#ccc" : "#444", flex: 1 }}>{m.name}</span>
+                <span style={{ color: m.done || isCurrent ? "#e07b39" : "#333", fontSize: 16, flexShrink: 0 }}>{m.done ? "✓" : isCurrent ? "◐" : "○"}</span>
+                <span style={{ fontSize: 14, color: m.done ? "#ccc" : isCurrent ? "#e8e8e8" : "#444", flex: 1 }}>{m.name}{isCurrent && <span style={{ fontSize: 11, color: "#e07b39", marginLeft: 8 }}>In progress</span>}</span>
                 {m.done && m.completed_date && <span style={{ fontSize: 12, color: "#555" }}>{new Date(m.completed_date).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
