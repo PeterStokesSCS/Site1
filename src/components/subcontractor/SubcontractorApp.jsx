@@ -18,9 +18,31 @@ import { useOfflineQueue } from "../../hooks/useOfflineQueue";
 function SignInScreen({ project, user, onBack }) {
   const { isOnline, refreshPending } = useOfflineQueue();
   const [done, setDone] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [swms, setSwms] = useState(false);
   const [ppe, setPpe] = useState(false);
+  const [active, setActive] = useState(undefined); // undefined=loading, null=not on site, row=signed in
+
+  useEffect(() => {
+    let alive = true;
+    supabase.from("site_visits").select("*").eq("project_id", project.id).eq("recorded_by", user.id).is("sign_out", null).order("sign_in", { ascending: false }).limit(1)
+      .then(({ data }) => { if (alive) setActive(data && data[0] ? data[0] : null); });
+    return () => { alive = false; };
+  }, [project.id, user.id]);
+
+  const signOut = async () => {
+    if (!active || submitting) return;
+    setSubmitting(true);
+    const stamp = new Date().toISOString();
+    const { error } = await supabase.from("site_visits").update({ sign_out: stamp }).eq("id", active.id);
+    const payload = { ...active, sign_out: stamp };
+    try { await post("/site/signout", payload); } catch { enqueue("/site/signout", payload); refreshPending(); }
+    if (error) { enqueue("/site/signout", payload); refreshPending(); }
+    setSubmitting(false);
+    setActive(null);
+    setSignedOut(true);
+  };
 
   const signIn = async () => {
     if (!swms || !ppe || submitting) return;
@@ -40,6 +62,7 @@ function SignInScreen({ project, user, onBack }) {
     try { await post("/site/signin", row); } catch { enqueue("/site/signin", row); refreshPending(); }
     if (error) { enqueue("/site/signin", row); refreshPending(); }
     setSubmitting(false);
+    setActive(row);
     setDone(true);
   };
 
@@ -52,6 +75,44 @@ function SignInScreen({ project, user, onBack }) {
         <div style={{ fontSize: 14, color: "#555", textAlign: "center" }}>{isOnline ? "You're on the site muster" : "Saved — will sync when connected"}</div>
         <div style={{ fontSize: 12, color: "#444", textAlign: "center" }}>{new Date().toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>
       </div>
+    </div>
+  );
+
+  if (signedOut) return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Site Sign-Out" subtitle={project.street} onBack={onBack} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
+        <div style={{ fontSize: 64 }}>👋</div>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, color: "#e07b39" }}>SIGNED OUT</div>
+        <div style={{ fontSize: 14, color: "#555", textAlign: "center" }}>{isOnline ? "You're off the site muster" : "Saved — will sync when connected"}</div>
+        <div style={{ fontSize: 12, color: "#444", textAlign: "center" }}>{new Date().toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>
+      </div>
+    </div>
+  );
+
+  // Already on site → offer self sign-out (H9: syncs to supervisor muster)
+  if (active) return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <OfflineBar />
+      <BackHeader title="On Site" subtitle={project.street} onBack={onBack} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 16 }}>
+        <div style={{ fontSize: 56 }}>🦺</div>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, color: "#22c55e" }}>YOU'RE ON SITE</div>
+        <div style={{ fontSize: 13, color: "#666", textAlign: "center" }}>Signed in at {new Date(active.sign_in).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}</div>
+        <button onClick={signOut} disabled={submitting} style={{
+          width: "100%", maxWidth: 360, marginTop: 12, padding: "18px", borderRadius: 12, border: "none",
+          background: "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 20, letterSpacing: 1, cursor: submitting ? "wait" : "pointer",
+        }}>
+          {submitting ? "SIGNING OUT..." : "SIGN OUT OF SITE"}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (active === undefined) return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Safety Sign-In" subtitle={project.street} onBack={onBack} />
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#444", fontSize: 13 }}>Checking site status…</div>
     </div>
   );
 

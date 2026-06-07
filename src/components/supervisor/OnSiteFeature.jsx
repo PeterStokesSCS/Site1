@@ -109,7 +109,7 @@ function WorkerDetail({ worker, timesheet, user, onBack, projectId }) {
 }
 
 // ── Add Visitor / Sub Form ─────────────────────────────────────────────────────
-function AddVisitorForm({ projectId, userId, onSave, onCancel }) {
+function AddVisitorForm({ projectId, userId, companies = [], onSave, onCancel }) {
   const [form, setForm] = useState({ visitor_name: "", company: "", trade: "", phone: "", type: "visitor", swms_acknowledged: false, safety_rules_acknowledged: false });
   const [saving, setSaving] = useState(false);
 
@@ -134,13 +134,14 @@ function AddVisitorForm({ projectId, userId, onSave, onCancel }) {
           <button key={k} onClick={() => setForm(f => ({ ...f, type: k }))} style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: `1px solid ${form.type === k ? "#e07b39" : "#2a2a2a"}`, background: form.type === k ? "#2a1800" : "transparent", color: form.type === k ? "#e07b39" : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{l}</button>
         ))}
       </div>
+      <datalist id="known-companies">{companies.map(c => <option key={c} value={c} />)}</datalist>
       {[
         { k: "visitor_name", ph: "Full name *" },
-        { k: "company",      ph: "Company" },
+        { k: "company",      ph: "Company", list: "known-companies" },
         { k: "trade",        ph: form.type === "subcontractor" ? "Trade (e.g. Plumber)" : "Reason for visit" },
         { k: "phone",        ph: "Phone number" },
       ].map(f => (
-        <input key={f.k} value={form[f.k]} onChange={e => setForm(prev => ({ ...prev, [f.k]: e.target.value }))} placeholder={f.ph} style={{ ...inp, marginBottom: 8 }} />
+        <input key={f.k} value={form[f.k]} onChange={e => setForm(prev => ({ ...prev, [f.k]: e.target.value }))} placeholder={f.ph} list={f.list} style={{ ...inp, marginBottom: 8 }} />
       ))}
       {form.type === "subcontractor" && (
         <div style={{ marginBottom: 12 }}>
@@ -172,6 +173,7 @@ export default function OnSiteFeature({ project, user, onBack }) {
   const [timesheets, setTimesheets] = useState([]);
   const [visits, setVisits] = useState([]);
   const [profiles, setProfiles] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState(null);
@@ -205,10 +207,13 @@ export default function OnSiteFeature({ project, user, onBack }) {
       supabase.from("timesheets").select("*").eq("project_id", project.id).is("clock_out", null),
       supabase.from("site_visits").select("*").eq("project_id", project.id).is("sign_out", null),
       supabase.from("profiles").select("*"),
-    ]).then(([t, v, p]) => {
+      supabase.from("site_visits").select("company").not("company", "is", null),
+    ]).then(([t, v, p, c]) => {
       setTimesheets(t.data || []);
       setVisits(v.data || []);
       setProfiles(p.data || []);
+      // Known companies (for autocomplete): from past visits + people's company field.
+      setCompanies([...new Set([...(c.data || []).map(x => x.company), ...(p.data || []).map(x => x.company)].filter(Boolean))].sort());
       setLoading(false);
     });
   }, [project.id, tick]);
@@ -241,7 +246,7 @@ export default function OnSiteFeature({ project, user, onBack }) {
       {tab === "history" ? <AttendanceHistory project={project} /> : (
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
 
-        {showAdd && <AddVisitorForm projectId={project.id} userId={user.id} onSave={v => { setVisits(prev => [v, ...prev]); setShowAdd(false); }} onCancel={() => setShowAdd(false)} />}
+        {showAdd && <AddVisitorForm projectId={project.id} userId={user.id} companies={companies} onSave={v => { setVisits(prev => [v, ...prev]); setShowAdd(false); }} onCancel={() => setShowAdd(false)} />}
 
         {/* Summary */}
         <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
@@ -311,6 +316,7 @@ export default function OnSiteFeature({ project, user, onBack }) {
 // Completed-shift records (closed timesheets + signed-out visits) for this project
 function AttendanceHistory({ project }) {
   const [rows, setRows] = useState(null);
+  const [day, setDay] = useState("");   // optional date filter (YYYY-MM-DD)
   useEffect(() => {
     Promise.all([
       supabase.from("timesheets").select("*").eq("project_id", project.id).not("clock_out", "is", null).order("clock_in", { ascending: false }).limit(100),
@@ -335,12 +341,18 @@ function AttendanceHistory({ project }) {
   }, [project.id]);
 
   const fmtT = (iso) => iso ? new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true }) : "--";
+  const visible = day ? (rows || []).filter(r => r.date === day) : (rows || []);
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
+      {/* Date picker (H10) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <input type="date" value={day} onChange={e => setDay(e.target.value)} style={{ flex: 1, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "9px 11px", fontFamily: "DM Sans, sans-serif", colorScheme: "dark" }} />
+        {day && <button onClick={() => setDay("")} style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid #2a2a2a", background: "transparent", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>All days</button>}
+      </div>
       {rows === null ? [1,2,3].map(i => <div key={i} style={{ height: 56, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
-        : rows.length === 0 ? <EmptyState icon="📋" title="No completed shifts yet" subtitle="Records appear here once people clock/sign out" />
-        : rows.map(r => (
+        : visible.length === 0 ? <EmptyState icon="📋" title={day ? "Nobody on site that day" : "No completed shifts yet"} subtitle={day ? "Try another date" : "Records appear here once people clock/sign out"} />
+        : visible.map(r => (
           <div key={r.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, color: "#ccc", fontWeight: 600 }}>{r.name} <span style={{ fontSize: 11, color: "#555", textTransform: "capitalize" }}>· {r.role}</span></div>
