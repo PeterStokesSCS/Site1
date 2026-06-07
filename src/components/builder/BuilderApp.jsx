@@ -7,6 +7,7 @@ import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
 import ProjectDashboard from "../shared/ProjectDashboard";
 import ProjectHeader from "../shared/ProjectHeader";
+import LabourHub from "./LabourHub";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import TeamMemberDetail from "./TeamMemberDetail";
@@ -216,74 +217,6 @@ function ProjectsTab({ projects, onProjectCreated, initialFilter, onOpenProject 
   );
 }
 
-// ── Labour / Timesheets tab ────────────────────────────────────────────────────
-function LabourTab({ timesheets, onApprove, user }) {
-  const pending = timesheets.filter(t => t.status === "pending");
-  const approved = timesheets.filter(t => t.status === "approved");
-
-  const approveAll = () => pending.forEach(ts => onApprove(ts.id));
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
-        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f0f0" }}>LABOUR</div>
-        {pending.length > 1 && (
-          <button onClick={approveAll} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "#22c55e", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>
-            APPROVE ALL ({pending.length})
-          </button>
-        )}
-      </div>
-      {pending.length === 0 && approved.length === 0
-        ? <EmptyState icon="📋" title="No timesheets yet" subtitle="Timesheets appear here when workers clock in and out" />
-        : null
-      }
-      {pending.length > 0 && (
-        <>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, color: "#f59e0b", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Pending ({pending.length})</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-            {pending.map(ts => (
-              <div key={ts.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, color: "#888", flexShrink: 0 }}>
-                  {(ts.worker?.full_name || "?").split(" ").map(n => n[0]).join("")}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#ccc" }}>{ts.worker?.full_name || "Unknown"}</div>
-                  <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
-                    {ts.project?.street} · {new Date(ts.work_date).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
-                    {ts.clock_in && ` · In ${new Date(ts.clock_in).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}`}
-                    {ts.clock_out && ` → Out ${new Date(ts.clock_out).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true })}`}
-                  </div>
-                </div>
-                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, color: "#e07b39", fontWeight: 700, flexShrink: 0 }}>
-                  {ts.hours_worked ? `${ts.hours_worked}h` : "—"}
-                </div>
-                <button onClick={() => onApprove(ts.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#22c55e", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer", flexShrink: 0 }}>APPROVE</button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-      {approved.length > 0 && (
-        <>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, color: "#444", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Approved</div>
-          {approved.map(ts => (
-            <div key={ts.id} style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "10px 14px", marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", opacity: 0.65 }}>
-              <div>
-                <span style={{ fontSize: 13, color: "#888" }}>{ts.worker?.full_name}</span>
-                <span style={{ fontSize: 12, color: "#444", marginLeft: 10 }}>{ts.project?.street} · {new Date(ts.work_date).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
-              </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, color: "#555" }}>{ts.hours_worked ? `${ts.hours_worked}h` : "—"}</span>
-                <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: "#22c55e", background: "#06200e", padding: "2px 8px", borderRadius: 4 }}>APPROVED</span>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
 // ── Team management tab ────────────────────────────────────────────────────────
 const ROLE_COLOR = { builder: "#e07b39", supervisor: "#f59e0b", worker: "#22c55e", subcontractor: "#3b82f6", client: "#a855f7", office: "#06b6d4" };
 
@@ -487,7 +420,7 @@ export default function BuilderApp({ user }) {
     switch (tab) {
       case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={openProjectClean} user={user} onOpenAction={openAction} />;
       case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} onOpenProject={openProjectClean} />;
-      case "labour":     return <LabourTab timesheets={timesheets} onApprove={handleApprove} user={user} />;
+      case "labour":     return <LabourHub timesheets={timesheets} projects={projects} onApprove={handleApprove} user={user} />;
       case "team":       return <TeamTab />;
       default: return <div style={{ color: "#444", padding: "40px 0", textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>Coming in Stage 3</div>;
     }

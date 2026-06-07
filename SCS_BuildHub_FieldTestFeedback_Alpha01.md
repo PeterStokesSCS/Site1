@@ -43,7 +43,7 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 ## MEDIUM
 | # | Item | Area | Status |
 |---|---|---|---|
-| M1 | **Labour tab** redefined as workforce/reporting: Timesheets, Attendance, Labour Allocation, Budget vs Actual, Productivity | Builder → Labour | ⬜ (design needed) |
+| M1 | **Labour tab** redefined as workforce/reporting: Timesheets, Attendance, Labour Allocation, Budget vs Actual, Productivity | Builder → Labour | ✅ Done (hours-only hub: Timesheets approval, Attendance by day, Labour Allocation w/ on-site-now, Hours report by project/worker · week/all — no SQL. $ Budget-vs-Actual/Productivity deferred until pay rates are added) |
 | M2 | **Supervisor profile button** (orange avatar) opens a personal Supervisor Dashboard: assigned tasks, outstanding actions, upcoming inspections, team notifications, personal timesheets, approvals — separate from project items | Supervisor | ✅ Done (avatar → My Dashboard: cross-project actions, my time, my tasks) |
 | M3 | **Weather API** in Daily Log — forecast, temp, rainfall, conditions (replaces manual) | Daily Log | ✅ Done (Open-Meteo auto-fill from project coords) |
 
