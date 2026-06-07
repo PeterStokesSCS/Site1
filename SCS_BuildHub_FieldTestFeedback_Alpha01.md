@@ -26,26 +26,26 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 |---|---|---|---|
 | H1 | Builder dashboard tiles clickable → Active Projects (filtered list), Approvals (approvals dashboard), At Risk (red projects), Attention (amber projects) | Builder → Dashboard | ✅ Done |
 | H2 | Rename **Variations → Commercial**; columns: Contracts, Purchase Orders, Quotes, Invoices, Receipts, Variations, Cost Tracking — each opens its own page (Approved / Pending / Revision Required, by project) | Builder | ⬜ |
-| H3 | **Team** restructured: Internal Staff / Subcontractors / Suppliers, with filter | Builder → Team | ⬜ |
-| H4 | **Team member detail page** — contact, address, licences, certificates, qualifications, emergency contact; history: projects, dates, hours, site history; future: productivity & estimating data | Builder → Team | ⬜ |
+| H3 | **Team** restructured: Internal Staff / Subcontractors / Suppliers, with filter | Builder → Team | 🟡 Partial — filter is Internal / Subs / **Clients** (no "supplier" user role exists; suppliers live as companies in Procurement, not profiles) |
+| H4 | **Team member detail page** — contact, address, licences, certificates, qualifications, emergency contact; history: projects, dates, hours, site history; future: productivity & estimating data | Builder → Team | ✅ Done (TeamMemberDetail.jsx — contact/address/emergency, credentials w/ expiry, history) |
 | H5 | **Persist last viewed project** — Supervisor reopens app on the project they were last on | Supervisor | ✅ Done |
 | H6 | **Current project indicator** — top corner: project + ON SITE + live timer (green); OFF SITE shows last project (red). Prevents wrong timesheet records | Supervisor | ✅ Done (tap to clock in/out) |
-| H7 | **Project-specific metrics** — On Site / Tasks Due / Issues / Hazards must reflect the selected project only, not company-wide | Supervisor | ⬜ (verify — believed already project-scoped) |
+| H7 | **Project-specific metrics** — On Site / Tasks Due / Issues / Hazards must reflect the selected project only, not company-wide | Supervisor | ✅ Done (verified — SupervisorApp stats all filter by projectId) |
 | H8 | **Supplier/sub auto-complete** on the On Site Company field | Supervisor → On Site | ✅ Done (datalist from prior site_visits + profiles) |
 | H9 | **Self sign-out sync** — sub signing out on their own login reflects on supervisor muster | On Site | ✅ Done (subby updates own open site_visit) |
 | H10 | **On Site history** — Today / History tabs; History = calendar selector → date, attendees, hours, visitor records | Supervisor → On Site | ✅ Done (date picker filter) |
-| H11 | **Task fields** — add Due Time, attachments (photos / PDFs / drawings). Structure: Title, Assigned To, Priority, Date, Time, Description, Attachments | Tasks | ⬜ |
-| H12 | Daily Log worker numbers auto-populate from On Site attendance (supervisor confirms) | Daily Log | ⬜ |
-| H13 | **Daily Log question-based workflow** — Deliveries? Visitors? Issues/Delays? each YES/NO; NO auto-records "No X", YES opens detail | Daily Log | ⬜ |
-| H14 | **Daily Log attendance review** before submit — confirm workers/subs/visitors | Daily Log | ⬜ |
-| H15 | **Daily Log history** — list newest-first, filters Day/Week/Month, search | Daily Log | ⬜ |
+| H11 | **Task fields** — add Due Time, attachments (photos / PDFs / drawings). Structure: Title, Assigned To, Priority, Date, Time, Description, Attachments | Tasks | ✅ Done (Due Time + creating a task now opens it so attachments can be added straight away) |
+| H12 | Daily Log worker numbers auto-populate from On Site attendance (supervisor confirms) | Daily Log | ✅ Done (getAttendanceForDay pre-fills workers_on_site) |
+| H13 | **Daily Log question-based workflow** — Deliveries? Visitors? Issues/Delays? each YES/NO; NO auto-records "No X", YES opens detail | Daily Log | ✅ Done (QToggle Yes/No → detail) |
+| H14 | **Daily Log attendance review** before submit — confirm workers/subs/visitors | Daily Log | ✅ Done ("On Site Today" roll shown before submit) |
+| H15 | **Daily Log history** — list newest-first, filters Day/Week/Month, search | Daily Log | ✅ Done (Today/Week/Month/All + search) |
 
 ## MEDIUM
 | # | Item | Area | Status |
 |---|---|---|---|
 | M1 | **Labour tab** redefined as workforce/reporting: Timesheets, Attendance, Labour Allocation, Budget vs Actual, Productivity | Builder → Labour | ⬜ (design needed) |
 | M2 | **Supervisor profile button** (orange avatar) opens a personal Supervisor Dashboard: assigned tasks, outstanding actions, upcoming inspections, team notifications, personal timesheets, approvals — separate from project items | Supervisor | ✅ Done (avatar → My Dashboard: cross-project actions, my time, my tasks) |
-| M3 | **Weather API** in Daily Log — forecast, temp, rainfall, conditions (replaces manual) | Daily Log | ⬜ |
+| M3 | **Weather API** in Daily Log — forecast, temp, rainfall, conditions (replaces manual) | Daily Log | ✅ Done (Open-Meteo auto-fill from project coords) |
 
 ## LOW
 | # | Item | Area | Status |

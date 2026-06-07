@@ -230,9 +230,12 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
     const { data, error } = await createTask(payload);
     setSaving(false);
     if (error) { setSaveError(error.message); return; }
-    setAllTasks(prev => [data, ...prev]);
+    const created = { ...data, assignee: workers.find(w => w.id === data.assignee_id) || null };
+    setAllTasks(prev => [created, ...prev]);
     setShowForm(false);
     setForm({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
+    // Open the new task so photos / PDFs / drawings can be attached straight away (H11)
+    setSelectedTask(created);
   };
 
   const filtered = filter === "all" ? allTasks.filter(t => t.status !== "completed")
