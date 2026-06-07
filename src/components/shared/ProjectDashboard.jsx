@@ -21,21 +21,30 @@ import DefectsModule from "./DefectsModule";
 
 // §7 Project Dashboard — the project becomes its own workspace.
 // Shared by Builder (drill-in from project list) and Supervisor (home screen).
-const TILES = [
-  { key: "overview",      icon: "📊", label: "Overview",      accent: "#64748b", bg: "#0c1420" },
-  { key: "plans",         icon: "📐", label: "Project Docs",  accent: "#3b82f6", bg: "#0c1a33" },
-  { key: "tasks",         icon: "✅", label: "Tasks",         accent: "#f59e0b", bg: "#251d00" },
-  { key: "attendance",    icon: "👷", label: "Attendance",    accent: "#0ea5e9", bg: "#061520" },
-  { key: "dailyLog",      icon: "📅", label: "Daily Logs",    accent: "#14b8a6", bg: "#061e1c" },
-  { key: "photos",        icon: "📷", label: "Photos",        accent: "#a855f7", bg: "#1a0c33" },
-  { key: "safety",        icon: "⚠️", label: "Safety",        accent: "#ef4444", bg: "#2a0c0c" },
-  { key: "issues",        icon: "⚡", label: "Issues",        accent: "#f97316", bg: "#251200" },
-  { key: "variations",    icon: "±",  label: "Variations",    accent: "#6366f1", bg: "#10103a" },
-  { key: "commercial",    icon: "💰", label: "Commercial",    accent: "#d97706", bg: "#1e1200" },
-  { key: "timeline",      icon: "📈", label: "Timeline",      accent: "#0ea5e9", bg: "#06202a" },
-  { key: "inspections",   icon: "🔍", label: "Inspections",   accent: "#14b8a6", bg: "#06201e" },
-  { key: "defects",       icon: "🔧", label: "Defects",       accent: "#f97316", bg: "#251200" },
-  { key: "communication", icon: "💬", label: "Comms",         accent: "#22c55e", bg: "#06200e" },
+// Tiles are grouped into sections so the (now many) functions stay scannable on a phone.
+const GROUPS = [
+  { section: "Site", tiles: [
+    { key: "tasks",         icon: "✅", label: "Tasks",         accent: "#f59e0b", bg: "#251d00" },
+    { key: "attendance",    icon: "👷", label: "Attendance",    accent: "#0ea5e9", bg: "#061520" },
+    { key: "dailyLog",      icon: "📅", label: "Daily Logs",    accent: "#14b8a6", bg: "#061e1c" },
+    { key: "photos",        icon: "📷", label: "Photos",        accent: "#a855f7", bg: "#1a0c33" },
+    { key: "safety",        icon: "⚠️", label: "Safety",        accent: "#ef4444", bg: "#2a0c0c" },
+    { key: "issues",        icon: "⚡", label: "Issues",        accent: "#f97316", bg: "#251200" },
+  ]},
+  { section: "Quality & Programme", tiles: [
+    { key: "inspections",   icon: "🔍", label: "Inspections",   accent: "#14b8a6", bg: "#06201e" },
+    { key: "defects",       icon: "🔧", label: "Defects",       accent: "#f97316", bg: "#251200" },
+    { key: "timeline",      icon: "📈", label: "Timeline",      accent: "#0ea5e9", bg: "#06202a" },
+  ]},
+  { section: "Commercial", tiles: [
+    { key: "variations",    icon: "±",  label: "Variations",    accent: "#6366f1", bg: "#10103a" },
+    { key: "commercial",    icon: "💰", label: "Commercial",    accent: "#d97706", bg: "#1e1200" },
+  ]},
+  { section: "Project", tiles: [
+    { key: "overview",      icon: "📊", label: "Overview",      accent: "#64748b", bg: "#0c1420" },
+    { key: "plans",         icon: "📐", label: "Project Docs",  accent: "#3b82f6", bg: "#0c1a33" },
+    { key: "communication", icon: "💬", label: "Comms",         accent: "#22c55e", bg: "#06200e" },
+  ]},
 ];
 
 function Soon({ title, project, onBack }) {
@@ -135,9 +144,14 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-          {TILES.map(t => <AppTile key={t.key} {...t} badge={badges[t.key] || 0} onClick={() => setScreen(t.key)} />)}
-        </div>
+        {GROUPS.map(g => (
+          <div key={g.section} style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>{g.section}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {g.tiles.map(t => <AppTile key={t.key} {...t} badge={badges[t.key] || 0} onClick={() => setScreen(t.key)} />)}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
