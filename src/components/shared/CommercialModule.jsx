@@ -49,8 +49,17 @@ function StatusBadge({ status }) {
 const money = (n) => (n || n === 0) ? `$${Number(n).toLocaleString()}` : "—";
 
 // ── Category list (contracts / POs / quotes / invoices / receipts) ─────────────
+const FILTERS = [
+  { key: "all",      label: "All" },
+  { key: "pending",  label: "Pending" },
+  { key: "revision", label: "Revision" },
+  { key: "approved", label: "Approved" },
+  { key: "draft",    label: "Draft" },
+];
+
 function CategoryList({ project, user, category, onBack }) {
   const [items, setItems] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", ref: "", vendor: "", amount: "", status: "draft", description: "", file_url: "" });
   const [saving, setSaving] = useState(false);
@@ -140,10 +149,22 @@ function CategoryList({ project, user, category, onBack }) {
 
         {items === null ? [1,2].map(i => <div key={i} style={{ height: 70, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
           : items.length === 0 ? <EmptyState icon={category.icon} title={`No ${category.label.toLowerCase()} yet`} subtitle="Use + ADD to create one" />
-          : (
+          : (() => {
+            const visible = statusFilter === "all" ? items : items.filter(i => i.status === statusFilter);
+            return (
             <>
               {total > 0 && <div style={{ fontSize: 13, color: "#555", marginBottom: 12 }}>Approved total: <span style={{ color: "#22c55e", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16 }}>{money(total)}</span></div>}
-              {items.map(it => (
+              {/* Status filter — Approved / Pending / Revision Required, by project */}
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                {FILTERS.map(f => {
+                  const n = f.key === "all" ? items.length : items.filter(i => i.status === f.key).length;
+                  return (
+                    <button key={f.key} onClick={() => setStatusFilter(f.key)} style={{ padding: "5px 11px", borderRadius: 16, border: `1px solid ${statusFilter === f.key ? category.accent : "#2a2a2a"}`, background: statusFilter === f.key ? category.accent + "22" : "transparent", color: statusFilter === f.key ? category.accent : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, cursor: "pointer" }}>{f.label}{n ? ` ${n}` : ""}</button>
+                  );
+                })}
+              </div>
+              {visible.length === 0 ? <EmptyState icon={category.icon} title={`No ${FILTERS.find(f => f.key === statusFilter)?.label.toLowerCase()} ${category.label.toLowerCase()}`} subtitle="Try another status" />
+                : visible.map(it => (
                 <div key={it.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                     <div style={{ flex: 1 }}>
@@ -166,7 +187,8 @@ function CategoryList({ project, user, category, onBack }) {
                 </div>
               ))}
             </>
-          )}
+            );
+          })()}
       </div>
     </div>
   );

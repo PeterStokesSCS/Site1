@@ -37,7 +37,7 @@ const GROUPS = [
     { key: "timeline",      icon: "📈", label: "Timeline",      accent: "#0ea5e9", bg: "#06202a" },
   ]},
   { section: "Commercial", tiles: [
-    { key: "variations",    icon: "±",  label: "Variations",    accent: "#6366f1", bg: "#10103a" },
+    // Variations now live inside Commercial → Variations (H2: "Variations → Commercial").
     { key: "commercial",    icon: "💰", label: "Commercial",    accent: "#d97706", bg: "#1e1200" },
   ]},
   { section: "Project", tiles: [

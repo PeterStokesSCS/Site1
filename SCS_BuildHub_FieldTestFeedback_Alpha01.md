@@ -25,7 +25,7 @@ _Tester: Peter Stokes · Roles tested: Builder & Supervisor · Logged 2026-06-03
 | # | Item | Area | Status |
 |---|---|---|---|
 | H1 | Builder dashboard tiles clickable → Active Projects (filtered list), Approvals (approvals dashboard), At Risk (red projects), Attention (amber projects) | Builder → Dashboard | ✅ Done |
-| H2 | Rename **Variations → Commercial**; columns: Contracts, Purchase Orders, Quotes, Invoices, Receipts, Variations, Cost Tracking — each opens its own page (Approved / Pending / Revision Required, by project) | Builder | ⬜ |
+| H2 | Rename **Variations → Commercial**; columns: Contracts, Purchase Orders, Quotes, Invoices, Receipts, Variations, Cost Tracking — each opens its own page (Approved / Pending / Revision Required, by project) | Builder | ✅ Done (Commercial hub w/ all categories; each page now has Approved/Pending/Revision/Draft filters; standalone Variations tile folded into Commercial) |
 | H3 | **Team** restructured: Internal Staff / Subcontractors / Suppliers, with filter | Builder → Team | 🟡 Partial — filter is Internal / Subs / **Clients** (no "supplier" user role exists; suppliers live as companies in Procurement, not profiles) |
 | H4 | **Team member detail page** — contact, address, licences, certificates, qualifications, emergency contact; history: projects, dates, hours, site history; future: productivity & estimating data | Builder → Team | ✅ Done (TeamMemberDetail.jsx — contact/address/emergency, credentials w/ expiry, history) |
 | H5 | **Persist last viewed project** — Supervisor reopens app on the project they were last on | Supervisor | ✅ Done |
