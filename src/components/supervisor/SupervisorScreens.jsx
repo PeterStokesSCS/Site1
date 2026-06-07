@@ -7,6 +7,7 @@ import {
   getMessages, sendMessage, addPhoto,
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
+import { fetchWeather } from "../../lib/weather";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
 import PhotoAttach from "../shared/PhotoAttach";
 import PhotoCaptureButton from "../shared/PhotoCaptureButton";
@@ -15,6 +16,9 @@ import PhotoQueueBanner from "../shared/PhotoQueueBanner";
 // Local YYYY-MM-DD (not UTC) so "today" matches the supervisor's actual day
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function isoDaysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n); return localDateStr(d);
 }
 function fmtT(iso) {
   return iso ? new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true }) : "--";
@@ -132,17 +136,38 @@ export function SafetyScreen({ project, user, onBack }) {
 }
 
 // ── Daily Log ──────────────────────────────────────────────────────────────────
+function QToggle({ label, yes, onSet, detail, onDetail, placeholder }) {
+  return (
+    <div style={{ marginBottom: 12, background: "#101010", border: "1px solid #1e1e1e", borderRadius: 9, padding: "10px 12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 13, color: "#ccc" }}>{label}</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[["No", false, "#888"], ["Yes", true, "#14b8a6"]].map(([t, v, c]) => (
+            <button key={t} onClick={() => onSet(v)} style={{ padding: "5px 16px", borderRadius: 7, border: `1px solid ${yes === v ? c : "#2a2a2a"}`, background: yes === v ? `${c}22` : "transparent", color: yes === v ? c : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{t}</button>
+          ))}
+        </div>
+      </div>
+      {yes === true && <textarea value={detail} onChange={e => onDetail(e.target.value)} placeholder={placeholder} rows={2} style={{ ...inp, resize: "vertical", marginTop: 8 }} autoFocus />}
+    </div>
+  );
+}
+
+const FRESH_LOG = { weather: "", workers_on_site: "", progress_notes: "", hasDeliveries: null, deliveries: "", hasVisitors: null, visitors: "", hasIssues: null, issues: "" };
+
 export function DailyLogScreen({ project, user, onBack }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ weather: "Fine", workers_on_site: "", progress_notes: "", deliveries: "", visitors: "", issues: "" });
+  const [form, setForm] = useState(FRESH_LOG);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   const [roll, setRoll] = useState(null);       // today's attendance roll
   const [now, setNow] = useState(Date.now());
   const [expanded, setExpanded] = useState(null); // log id whose attendance is expanded
+  const [range, setRange] = useState("all");     // history filter: day/week/month/all
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     getDailyLogs(project.id).then(({ data }) => { setLogs(data); setLoading(false); });
@@ -150,63 +175,98 @@ export function DailyLogScreen({ project, user, onBack }) {
 
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
 
-  // When the form opens, load today's full attendance roll and pre-fill the headcount
+  // When the form opens: load today's attendance (auto headcount) + auto-fetch weather.
   useEffect(() => {
     if (!showForm) return;
     getAttendanceForDay(project.id, localDateStr()).then(({ data }) => {
       setRoll(data);
       setForm(f => (f.workers_on_site === "" ? { ...f, workers_on_site: String(data.length) } : f));
     });
+    if (project.lat != null && project.lng != null) {
+      setWeatherLoading(true);
+      fetchWeather(project.lat, project.lng).then(w => { if (w) setForm(f => (f.weather ? f : { ...f, weather: w.summary })); setWeatherLoading(false); });
+    }
   }, [showForm, project.id]);
 
+  const openForm = () => { setForm(FRESH_LOG); setSubmitted(false); setShowForm(true); };
+
   const submit = async () => {
-    if (!form.progress_notes) return;
+    if (!form.progress_notes.trim()) return;
     setSubmitting(true);
-    const { data } = await createDailyLog({ ...form, workers_on_site: parseInt(form.workers_on_site) || 0, project_id: project.id, submitted_by: user.id, log_date: localDateStr() });
+    // Yes/No answers become explicit text — "No deliveries" records the negative.
+    const payload = {
+      weather: form.weather.trim() || null,
+      workers_on_site: parseInt(form.workers_on_site) || 0,
+      progress_notes: form.progress_notes.trim(),
+      deliveries: form.hasDeliveries ? (form.deliveries.trim() || "Deliveries received") : "No deliveries",
+      visitors: form.hasVisitors ? (form.visitors.trim() || "Visitors on site") : "No visitors",
+      issues: form.hasIssues ? (form.issues.trim() || "Issue logged") : "No issues",
+      project_id: project.id, submitted_by: user.id, log_date: localDateStr(),
+    };
+    const { data } = await createDailyLog(payload);
     if (data) { setLogs(prev => [data, ...prev]); setSubmitted(true); setShowForm(false); }
     post("/dailylogs", data).catch(() => {});
     setSubmitting(false);
   };
 
+  // History filter + search
+  const cutoff = range === "day" ? localDateStr() : range === "week" ? isoDaysAgo(7) : range === "month" ? isoDaysAgo(30) : null;
+  const visibleLogs = logs.filter(l => {
+    if (cutoff && l.log_date < cutoff) return false;
+    if (search.trim()) { const s = search.toLowerCase(); return [l.progress_notes, l.deliveries, l.visitors, l.issues, l.weather].some(x => (x || "").toLowerCase().includes(s)); }
+    return true;
+  });
+  const canSubmit = form.progress_notes.trim() && form.hasDeliveries !== null && form.hasVisitors !== null && form.hasIssues !== null;
+
   return (
     <Screen title="Daily Log" subtitle={project.street} onBack={onBack}
-      action={<button onClick={() => setShowForm(s => !s)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#14b8a6", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>TODAY</button>}
+      action={<button onClick={() => showForm ? setShowForm(false) : openForm()} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#14b8a6", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{showForm ? "CANCEL" : "+ TODAY"}</button>}
     >
       {submitted && <div style={{ background: "#061e1c", border: "1px solid #14b8a6", borderRadius: 10, padding: "12px 14px", marginBottom: 14, color: "#14b8a6", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15 }}>✓ Daily log submitted</div>}
       {showForm && (
         <div style={{ background: "#141414", border: "1px solid #2a2a2a", borderRadius: 12, padding: 14, marginBottom: 14 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, color: "#14b8a6", marginBottom: 12 }}>{new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}</div>
           <div style={{ marginBottom: 12 }}>
-            <div style={lbl}>Weather</div>
-            <select value={form.weather} onChange={e => setForm(f => ({ ...f, weather: e.target.value }))} style={inp}>
-              {["Fine","Overcast","Rain","Strong Wind","Hot"].map(w => <option key={w}>{w}</option>)}
-            </select>
+            <div style={lbl}>Weather {weatherLoading && <span style={{ color: "#555", textTransform: "none", letterSpacing: 0 }}>· fetching…</span>}</div>
+            <input value={form.weather} onChange={e => setForm(f => ({ ...f, weather: e.target.value }))} placeholder="Auto from site location, or type it" style={inp} />
           </div>
-          {/* Attendance roll for today — auto from clock records */}
+          {/* Attendance review — auto from clock records */}
           <div style={{ marginBottom: 12 }}>
             <div style={lbl}>On Site Today {roll != null && <span style={{ color: "#0ea5e9", textTransform: "none", letterSpacing: 0 }}>· {roll.length} {roll.length === 1 ? "person" : "people"}</span>}</div>
             <AttendanceRoll entries={roll} now={now} />
           </div>
-          {[
-            { k: "progress_notes", l: "Work Completed *", ph: "What was done today..." },
-            { k: "deliveries",     l: "Deliveries",       ph: "Materials received..." },
-            { k: "visitors",       l: "Site Visitors",    ph: "Engineers, clients, inspectors..." },
-            { k: "issues",         l: "Issues / Delays",  ph: "Any problems..." },
-          ].map(f => (
-            <div key={f.k} style={{ marginBottom: 10 }}>
-              <div style={lbl}>{f.l}</div>
-              <textarea value={form[f.k]} onChange={e => setForm(prev => ({ ...prev, [f.k]: e.target.value }))} placeholder={f.ph} rows={2} style={{ ...inp, resize: "vertical" }} />
-            </div>
-          ))}
-          <button onClick={submit} disabled={submitting} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "#14b8a6", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={lbl}>Work Completed *</div>
+            <textarea value={form.progress_notes} onChange={e => setForm(f => ({ ...f, progress_notes: e.target.value }))} placeholder="What was done today…" rows={2} style={{ ...inp, resize: "vertical" }} />
+          </div>
+          <QToggle label="Any deliveries?" yes={form.hasDeliveries} onSet={v => setForm(f => ({ ...f, hasDeliveries: v }))} detail={form.deliveries} onDetail={v => setForm(f => ({ ...f, deliveries: v }))} placeholder="What was delivered…" />
+          <QToggle label="Any site visitors?" yes={form.hasVisitors} onSet={v => setForm(f => ({ ...f, hasVisitors: v }))} detail={form.visitors} onDetail={v => setForm(f => ({ ...f, visitors: v }))} placeholder="Engineers, clients, inspectors…" />
+          <QToggle label="Any issues or delays?" yes={form.hasIssues} onSet={v => setForm(f => ({ ...f, hasIssues: v }))} detail={form.issues} onDetail={v => setForm(f => ({ ...f, issues: v }))} placeholder="What held things up…" />
+          <button onClick={submit} disabled={submitting || !canSubmit} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: canSubmit ? "#14b8a6" : "#1e1e1e", color: canSubmit ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: canSubmit ? "pointer" : "not-allowed" }}>
             {submitting ? "SUBMITTING..." : "SUBMIT LOG"}
           </button>
+          {!canSubmit && !submitting && <div style={{ fontSize: 11, color: "#555", marginTop: 8, textAlign: "center" }}>Answer the three questions and add what was done.</div>}
         </div>
       )}
+
+      {/* History filters + search */}
+      {!showForm && logs.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+            {[["day", "Today"], ["week", "Week"], ["month", "Month"], ["all", "All"]].map(([k, l]) => (
+              <button key={k} onClick={() => setRange(k)} style={{ flex: 1, padding: "6px 4px", borderRadius: 7, border: `1px solid ${range === k ? "#14b8a6" : "#2a2a2a"}`, background: range === k ? "#061e1c" : "transparent", color: range === k ? "#14b8a6" : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, cursor: "pointer" }}>{l}</button>
+            ))}
+          </div>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search logs…" style={{ ...inp, fontSize: 13 }} />
+        </div>
+      )}
+
       {loading ? [1,2].map(i => <div key={i} style={{ height: 100, background: "#141414", borderRadius: 10, marginBottom: 8 }} />) :
         logs.length === 0
-          ? <EmptyState icon="📋" title="No logs yet" subtitle="Submit today's log using the TODAY button" />
-          : logs.map(log => (
+          ? <EmptyState icon="📋" title="No logs yet" subtitle="Submit today's log using the + TODAY button" />
+          : visibleLogs.length === 0
+            ? <EmptyState icon="🔍" title="No logs match" subtitle="Try a wider range or clear the search" />
+          : visibleLogs.map(log => (
             <div key={log.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, color: "#ccc" }}>{new Date(log.log_date).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short" })}</div>

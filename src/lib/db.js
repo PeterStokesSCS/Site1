@@ -212,7 +212,7 @@ export async function getDailyLogs(projectId) {
     .select("*, submitted_by:profiles(full_name)")
     .eq("project_id", projectId)
     .order("log_date", { ascending: false })
-    .limit(14);
+    .limit(90);
   return { data: data || [], error };
 }
 
