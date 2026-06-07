@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems } from "../../lib/db";
 import { VIC_MILESTONES } from "../../lib/timeline";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
@@ -220,6 +220,57 @@ function ProjectsTab({ projects, onProjectCreated, initialFilter, onOpenProject 
 // ── Team management tab ────────────────────────────────────────────────────────
 const ROLE_COLOR = { builder: "#e07b39", supervisor: "#f59e0b", worker: "#22c55e", subcontractor: "#3b82f6", client: "#a855f7", office: "#06b6d4" };
 
+// Suppliers aren't user profiles — they're the vendors named on commercial records.
+// This directory derives them from commercial_items.vendor across all projects.
+const TYPE_LABEL = { contract: "Contracts", purchase_order: "POs", quote: "Quotes", invoice: "Invoices", receipt: "Receipts", procurement: "Procurement", subbie_pos: "Subbie POs", cost: "Cost" };
+
+function SupplierDirectory({ commercial, projects }) {
+  const projMap = Object.fromEntries(projects.map(p => [p.id, p]));
+  const byVendor = {};
+  commercial.forEach(it => {
+    const name = (it.vendor || "").trim();
+    if (!name) return;
+    const key = name.toLowerCase();
+    const s = byVendor[key] || (byVendor[key] = { name, count: 0, total: 0, types: new Set(), projects: new Set(), last: null });
+    s.count += 1;
+    if (it.amount) s.total += Number(it.amount) || 0;
+    if (it.type) s.types.add(it.type);
+    if (it.project_id) s.projects.add(it.project_id);
+    if (!s.last || (it.created_at || "") > s.last) s.last = it.created_at;
+  });
+  const suppliers = Object.values(byVendor).sort((a, b) => b.count - a.count || b.total - a.total);
+  const money = (n) => n ? `$${Number(n).toLocaleString()}` : "—";
+
+  if (suppliers.length === 0) return <EmptyState icon="🏭" title="No suppliers yet" subtitle="Suppliers appear here once they're named as the vendor on a contract, PO, quote, invoice or receipt in Commercial." />;
+
+  return (
+    <>
+      <div style={{ fontSize: 12, color: "#555", marginBottom: 12 }}>{suppliers.length} supplier{suppliers.length === 1 ? "" : "s"} — derived from vendors named on commercial records.</div>
+      {suppliers.map(s => {
+        const projNames = [...s.projects].map(id => projMap[id]?.job_number || projMap[id]?.street).filter(Boolean);
+        return (
+          <div key={s.name} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px 16px", marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: "#1e1200", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🏭</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, color: "#eee", fontWeight: 600 }}>{s.name}</div>
+                <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{s.count} record{s.count === 1 ? "" : "s"}{projNames.length ? ` · ${projNames.length} project${projNames.length === 1 ? "" : "s"}` : ""}</div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, color: "#e07b39" }}>{money(s.total)}</div>
+                <div style={{ fontSize: 9, color: "#555" }}>total billed</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              {[...s.types].map(t => <span key={t} style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: "#888", background: "#1a1a1a", border: "1px solid #2a2a2a", padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" }}>{TYPE_LABEL[t] || t}</span>)}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function TeamTab() {
   const [profiles, setProfiles] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -230,11 +281,12 @@ function TeamTab() {
   const [editName, setEditName] = useState(null); // user id whose name is being edited
   const [nameDraft, setNameDraft] = useState("");
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState("all");   // all / internal / subs / clients
+  const [filter, setFilter] = useState("all");   // all / internal / subs / clients / suppliers
   const [detail, setDetail] = useState(null);     // profile shown in the detail screen
+  const [commercial, setCommercial] = useState([]); // all commercial_items, for the supplier directory
 
   const GROUP_OF = (role) => role === "subcontractor" ? "subs" : role === "client" ? "clients" : "internal";
-  const FILTERS = [["all", "All"], ["internal", "Internal"], ["subs", "Subcontractors"], ["clients", "Clients"]];
+  const FILTERS = [["all", "All"], ["internal", "Internal"], ["subs", "Subcontractors"], ["clients", "Clients"], ["suppliers", "Suppliers"]];
 
   const saveName = async (id) => {
     setSaving(true);
@@ -246,8 +298,8 @@ function TeamTab() {
   };
 
   useEffect(() => {
-    Promise.all([getProfiles(), getProjects(), getAllProjectMembers()]).then(([pr, pj, mb]) => {
-      setProfiles(pr.data); setProjects(pj.data); setMembers(mb.data); setLoading(false);
+    Promise.all([getProfiles(), getProjects(), getAllProjectMembers(), getAllCommercialItems()]).then(([pr, pj, mb, ci]) => {
+      setProfiles(pr.data); setProjects(pj.data); setMembers(mb.data); setCommercial(ci.data || []); setLoading(false);
     });
   }, []);
 
@@ -287,6 +339,8 @@ function TeamTab() {
       </div>
       {loading
         ? [1,2,3].map(i => <CardSkeleton key={i} />)
+        : filter === "suppliers"
+        ? <SupplierDirectory commercial={commercial} projects={projects} />
         : shownProfiles.map(p => {
           const isAdmin = p.role === "builder" || p.role === "office";
           const assignedIds = memberProjectIds(p.id);

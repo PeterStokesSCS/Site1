@@ -375,6 +375,16 @@ export async function getCommercialItems(projectId) {
   return { data: data || [], error };
 }
 
+// All commercial items across projects (RLS-scoped). Powers the Team → Suppliers
+// directory, which is derived from vendor names (suppliers aren't user profiles).
+export async function getAllCommercialItems() {
+  const { data, error } = await supabase
+    .from("commercial_items")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
 export async function createCommercialItem(payload) {
   const { data, error } = await supabase
     .from("commercial_items")
