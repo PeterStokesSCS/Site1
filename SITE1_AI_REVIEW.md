@@ -104,7 +104,7 @@ All committed to `main`, builds clean, 51/51 unit tests. **Only the last item ne
 | Team | **Suppliers** directory derived from `commercial_items.vendor` | `builder/BuilderApp.jsx`, `db.js` (`getAllCommercialItems`) |
 | Labour **(needs SQL)** | **Budget vs Actual**: per-project labour budget vs actual cost (hours × rate); confidential rates in `labour_rates` | `builder/LabourHub.jsx`, `db.js` (`getLabourRates`/`upsertLabourRate`), `supabase_migration_labour_rates.sql`, `projects.labour_budget` |
 
-**Migration to run for the last row:** `supabase_migration_labour_rates.sql` (creates `labour_rates` w/ builder/office RLS + adds `projects.labour_budget`). The UI degrades gracefully before it runs (amber prompt, no crash, saves don't persist).
+**Migration for the last row:** `supabase_migration_labour_rates.sql` (creates `labour_rates` w/ builder/office RLS + adds `projects.labour_budget`) — **applied to prod 2026-06-08**, so Budget vs Actual is live. (The UI also degrades gracefully if the table is absent: amber prompt, no crash, saves don't persist.)
 
 ### Review asks for §6
 - `LabourHub.jsx` `BudgetView`: verify cost math (`Σ hours × rate` per project) and that **rates are never rendered to non-builder roles** (the hub is builder-console-only — confirm there's no leak path).
