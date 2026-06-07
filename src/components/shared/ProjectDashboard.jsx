@@ -17,6 +17,7 @@ import ProjectDocsScreen from "./ProjectDocsScreen";
 import TimelineScreen from "./TimelineScreen";
 import LookaheadScreen from "./LookaheadScreen";
 import InspectionsModule from "./InspectionsModule";
+import DefectsModule from "./DefectsModule";
 
 // §7 Project Dashboard — the project becomes its own workspace.
 // Shared by Builder (drill-in from project list) and Supervisor (home screen).
@@ -33,6 +34,7 @@ const TILES = [
   { key: "commercial",    icon: "💰", label: "Commercial",    accent: "#d97706", bg: "#1e1200" },
   { key: "timeline",      icon: "📈", label: "Timeline",      accent: "#0ea5e9", bg: "#06202a" },
   { key: "inspections",   icon: "🔍", label: "Inspections",   accent: "#14b8a6", bg: "#06201e" },
+  { key: "defects",       icon: "🔧", label: "Defects",       accent: "#f97316", bg: "#251200" },
   { key: "communication", icon: "💬", label: "Comms",         accent: "#22c55e", bg: "#06200e" },
 ];
 
@@ -98,6 +100,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "commercial":    return <CommercialModule {...props} />;
       case "timeline":      return user?.role === "supervisor" ? <LookaheadScreen {...props} /> : <TimelineScreen {...props} />;
       case "inspections":   return <InspectionsModule {...props} />;
+      case "defects":       return <DefectsModule {...props} />;
       default: break;
     }
   }

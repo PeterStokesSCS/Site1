@@ -467,6 +467,31 @@ export async function recordForecastChange(payload) {
   return { data, error };
 }
 
+// ── Defects (snagging / punch list) ─────────────────────────────────────────────
+export async function getDefects(projectId) {
+  const { data, error } = await supabase
+    .from("defects")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function createDefect(payload) {
+  const { data, error } = await supabase.from("defects").insert(payload).select().single();
+  return { data, error };
+}
+
+export async function updateDefect(id, patch) {
+  const { data, error } = await supabase.from("defects").update(patch).eq("id", id).select().single();
+  return { data, error };
+}
+
+export async function deleteDefect(id) {
+  const { error } = await supabase.from("defects").delete().eq("id", id);
+  return { error };
+}
+
 // ── Inspections / QA ────────────────────────────────────────────────────────────
 export async function getQaItems(projectId) {
   const { data, error } = await supabase
