@@ -12,7 +12,7 @@ import { emptyLine, lineClient, lineCost, computeTotals, money, nextRef, pushAud
 
 // Human-readable labels for audit/revision events.
 const EVENT_LABELS = {
-  created: "Created", edited: "Edited", approved_for_issue: "Approved for issue",
+  created: "Created", edited: "Edited", approved_for_issue: "Finalised",
   sent_to_client: "Sent to client", issued: "Issued to client", reverted_to_draft: "Recalled to draft",
   superseded: "Superseded", created_revision: "Revision created", signed_pdf_saved: "Signed PDF saved",
   approved: "Approved by client", rejected: "Rejected by client",
@@ -45,7 +45,7 @@ const lbl = { fontSize: 11, color: "#777", textTransform: "uppercase", letterSpa
 const STATUS = {
   draft:             { label: "Draft",             color: "#888",    bg: "#1a1a1a" },
   pending:           { label: "Pending Approval",  color: "#f59e0b", bg: "#251d00" },
-  approved_for_issue:{ label: "Approved for Issue",color: "#a855f7", bg: "#1a0c33" },
+  approved_for_issue:{ label: "Ready to Send",     color: "#a855f7", bg: "#1a0c33" },
   sent:              { label: "Awaiting Sign-off", color: "#0ea5e9", bg: "#0c2233" },
   approved:          { label: "Approved",          color: "#22c55e", bg: "#06200e" },
   rejected:          { label: "Rejected",          color: "#ef4444", bg: "#2a0c0c" },
@@ -414,7 +414,7 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, nam
         <div style={{ display: "flex", gap: 8, padding: "12px 16px 22px", borderTop: "1px solid #1e1e1e", background: "#0c0c0c" }}>
           {(v.status === "draft" || v.status === "pending") && <>
             <button onClick={() => onEdit(v)} disabled={busy} style={pbtn("#3b82f6")}>✎ Edit Draft</button>
-            <button onClick={approveForIssue} disabled={busy} style={pbtn("#a855f7", true)}>✓ Approve for Issue</button>
+            <button onClick={approveForIssue} disabled={busy} style={pbtn("#a855f7", true)}>✓ Finalise</button>
           </>}
           {v.status === "approved_for_issue" && <>
             <button onClick={revertDraft} disabled={busy} style={pbtn("#888")}>↩ Revert</button>
