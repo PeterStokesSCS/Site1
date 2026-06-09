@@ -228,7 +228,7 @@ function TaskCreatedScreen({ task, projectName, onView, onAnother, onDone }) {
   );
 }
 
-function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId, projectName, initialFilter, initialShowForm }) {
+function TaskList({ title, tasks, loading, user, onBack, onAddTask, onChanged, workers, projectId, projectName, initialFilter, initialShowForm }) {
   const [filter, setFilter] = useState(initialFilter || "all");
   const [selectedTask, setSelectedTask] = useState(null);
   const [showForm, setShowForm] = useState(!!initialShowForm);
@@ -252,6 +252,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
     setAllTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: s } : t));
     await updateTaskStatus(task.id, s);
     post("/tasks/complete", { id: task.id, status: s }).catch(() => {});
+    onChanged?.(); // keep the other task views (landing counts, Created by Me, etc.) in sync
   };
 
   const saveTask = async () => {
@@ -274,6 +275,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
     if (error) { setSaveError(error.message); return; }
     const created = { ...data, assignee: workers.find(w => w.id === data.assignee_id) || null };
     setAllTasks(prev => [created, ...prev]);
+    onChanged?.(); // refresh the parent so the task shows in every view, not just this one
     setShowForm(false);
     setForm({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
     setDatePreset("today");
@@ -399,6 +401,10 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
     });
   }, [project.id]);
 
+  // Refresh the shared task list so every view (landing counts, Created by Me, etc.)
+  // reflects creates/changes made inside a child list — not just the one that made them.
+  const reloadTasks = () => getTasksByProject(project.id).then(({ data }) => setTasks(data));
+
   // Deep-link: a grouped item ("group:overdue") opens the Project Tasks list pre-filtered;
   // a specific task id opens its detail. One-shot per focusId.
   const focusedRef = useRef(null);
@@ -424,7 +430,7 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
   const todayCount   = (list) => list.filter(isDueToday).length;
   const openCount    = (list) => list.filter(t => t.status !== "completed").length;
   const toLanding = () => { setView("landing"); setGroupFilter(null); setAutoNew(false); };
-  const common = { loading, user, workers, projectId: project.id, projectName: project.street };
+  const common = { loading, user, workers, projectId: project.id, projectName: project.street, onChanged: reloadTasks };
 
   if (focusTask)          return <TaskDetail task={focusTask} user={user} onBack={() => setFocusTask(null)} />;
   if (view === "mine")    return <TaskList title="Assigned to Me" tasks={myTasks}      onBack={toLanding} {...common} />;
