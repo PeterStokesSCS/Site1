@@ -5,7 +5,9 @@ import {
   getHazardsByProject, createHazard, resolveHazard,
   getDailyLogs, createDailyLog, getAttendanceForDay,
   getMessages, sendMessage, addPhoto,
+  getVariations, createVariationLabour,
 } from "../../lib/db";
+import FileUploadButton from "../shared/FileUploadButton";
 import { post } from "../../lib/webhook";
 import { melbourneTodayStr } from "../../lib/actionQueue";
 import { fetchWeather } from "../../lib/weather";
@@ -155,7 +157,7 @@ function QToggle({ label, yes, onSet, detail, onDetail, placeholder }) {
   );
 }
 
-const FRESH_LOG = { weather: "", workers_on_site: "", progress_notes: "", hasDeliveries: null, deliveries: "", hasVisitors: null, visitors: "", hasIssues: null, issues: "" };
+const FRESH_LOG = { weather: "", workers_on_site: "", progress_notes: "", hasDeliveries: null, deliveries: "", hasVisitors: null, visitors: "", hasIssues: null, issues: "", hasVariation: null, varDescription: "", varWorkers: [], varHours: "", varVariationId: "", varPhotoUrl: "" };
 
 export function DailyLogScreen({ project, user, onBack }) {
   const [logs, setLogs] = useState([]);
@@ -167,6 +169,7 @@ export function DailyLogScreen({ project, user, onBack }) {
   const [weatherLoading, setWeatherLoading] = useState(false);
 
   const [roll, setRoll] = useState(null);       // today's attendance roll
+  const [variations, setVariations] = useState([]); // #6 link target dropdown
   const [now, setNow] = useState(Date.now());
   const [expanded, setExpanded] = useState(null); // log id whose attendance is expanded
   const [range, setRange] = useState("all");     // history filter: day/week/month/all
@@ -185,6 +188,7 @@ export function DailyLogScreen({ project, user, onBack }) {
       setRoll(data);
       setForm(f => (f.workers_on_site === "" ? { ...f, workers_on_site: String(data.length) } : f));
     });
+    getVariations(project.id).then(({ data }) => setVariations((data || []).filter(v => v.status !== "superseded")));
     if (project.lat != null && project.lng != null) {
       setWeatherLoading(true);
       fetchWeather(project.lat, project.lng).then(w => { if (w) setForm(f => (f.weather ? f : { ...f, weather: w.summary })); setWeatherLoading(false); });
@@ -209,6 +213,14 @@ export function DailyLogScreen({ project, user, onBack }) {
     const { data } = await createDailyLog(payload);
     if (data) { setLogs(prev => [data, ...prev]); setSubmitted(true); setShowForm(false); }
     post("/dailylogs", data).catch(() => {});
+    // #6: capture variation labour as a structured record (linked to a variation, or held as evidence).
+    if (form.hasVariation === true && (form.varWorkers.length || form.varHours || form.varDescription.trim())) {
+      createVariationLabour({
+        project_id: project.id, variation_id: form.varVariationId || null, work_date: localDateStr(),
+        worker_ids: form.varWorkers, hours: parseFloat(form.varHours) || null,
+        note: form.varDescription.trim() || null, photo_url: form.varPhotoUrl || null, created_by: user.id,
+      }).catch(() => {});
+    }
     setSubmitting(false);
   };
 
@@ -219,7 +231,7 @@ export function DailyLogScreen({ project, user, onBack }) {
     if (search.trim()) { const s = search.toLowerCase(); return [l.progress_notes, l.deliveries, l.visitors, l.issues, l.weather].some(x => (x || "").toLowerCase().includes(s)); }
     return true;
   });
-  const canSubmit = form.progress_notes.trim() && form.hasDeliveries !== null && form.hasVisitors !== null && form.hasIssues !== null;
+  const canSubmit = form.progress_notes.trim() && form.hasDeliveries !== null && form.hasVisitors !== null && form.hasIssues !== null && form.hasVariation !== null;
 
   return (
     <Screen title="Daily Log" subtitle={project.street} onBack={onBack}
@@ -245,6 +257,42 @@ export function DailyLogScreen({ project, user, onBack }) {
           <QToggle label="Any deliveries?" yes={form.hasDeliveries} onSet={v => setForm(f => ({ ...f, hasDeliveries: v }))} detail={form.deliveries} onDetail={v => setForm(f => ({ ...f, deliveries: v }))} placeholder="What was delivered…" />
           <QToggle label="Any site visitors?" yes={form.hasVisitors} onSet={v => setForm(f => ({ ...f, hasVisitors: v }))} detail={form.visitors} onDetail={v => setForm(f => ({ ...f, visitors: v }))} placeholder="Engineers, clients, inspectors…" />
           <QToggle label="Any issues or delays?" yes={form.hasIssues} onSet={v => setForm(f => ({ ...f, hasIssues: v }))} detail={form.issues} onDetail={v => setForm(f => ({ ...f, issues: v }))} placeholder="What held things up…" />
+
+          {/* #6: structured variation-labour capture (feeds variation actual cost / evidence) */}
+          <div style={{ marginBottom: 12 }}>
+            <div style={lbl}>Was variation / extra work carried out today?</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["No", false], ["Yes", true]].map(([label, val]) => (
+                <button key={label} onClick={() => setForm(f => ({ ...f, hasVariation: val }))} style={{ flex: 1, padding: "9px", borderRadius: 8, border: `1px solid ${form.hasVariation === val ? "#6366f1" : "#2a2a2a"}`, background: form.hasVariation === val ? "#10103a" : "transparent", color: form.hasVariation === val ? "#a5b4fc" : "#777", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>{label}</button>
+              ))}
+            </div>
+            {form.hasVariation === true && (
+              <div style={{ marginTop: 10, background: "#10103a", border: "1px solid #6366f155", borderRadius: 8, padding: 12 }}>
+                <textarea value={form.varDescription} onChange={e => setForm(f => ({ ...f, varDescription: e.target.value }))} placeholder="What extra work was done…" rows={2} style={{ ...inp, resize: "vertical", marginBottom: 10 }} />
+                <div style={lbl}>Who (tap to select — from today's muster)</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(roll || []).filter(r => r.kind === "worker").map(w => {
+                    const on = form.varWorkers.includes(w.worker_id);
+                    return <button key={w.id} onClick={() => setForm(f => ({ ...f, varWorkers: on ? f.varWorkers.filter(x => x !== w.worker_id) : [...f.varWorkers, w.worker_id] }))} style={{ padding: "6px 11px", borderRadius: 16, border: `1px solid ${on ? "#6366f1" : "#2a2a2a"}`, background: on ? "#6366f122" : "transparent", color: on ? "#a5b4fc" : "#888", fontSize: 12, cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif" }}>{on ? "✓ " : ""}{w.name}</button>;
+                  })}
+                  {(roll || []).filter(r => r.kind === "worker").length === 0 && <span style={{ fontSize: 12, color: "#555" }}>No one on the muster yet.</span>}
+                </div>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <div style={{ width: 120 }}><div style={lbl}>Hours each</div><input type="number" value={form.varHours} onChange={e => setForm(f => ({ ...f, varHours: e.target.value }))} placeholder="0" style={inp} /></div>
+                  <div style={{ flex: 1 }}><div style={lbl}>Link to variation</div>
+                    <select value={form.varVariationId} onChange={e => setForm(f => ({ ...f, varVariationId: e.target.value }))} style={inp}>
+                      <option value="">— Hold as evidence (new variation later) —</option>
+                      {variations.map(v => <option key={v.id} value={v.id}>{v.ref || "VO"} · {v.title}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <FileUploadButton folder={`variation_labour/${project.id}`} accept="image/*" capture="environment" label="📷 Photo" color="#6366f1" onUploaded={url => setForm(f => ({ ...f, varPhotoUrl: url }))} />
+                  {form.varPhotoUrl && <span style={{ fontSize: 12, color: "#22c55e" }}>✓ photo attached</span>}
+                </div>
+              </div>
+            )}
+          </div>
           <button onClick={submit} disabled={submitting || !canSubmit} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: canSubmit ? "#14b8a6" : "#1e1e1e", color: canSubmit ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: canSubmit ? "pointer" : "not-allowed" }}>
             {submitting ? "SUBMITTING..." : "SUBMIT LOG"}
           </button>

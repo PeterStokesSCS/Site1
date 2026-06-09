@@ -218,7 +218,7 @@ export async function getAttendanceForDay(projectId, dateStr) {
   const pmap = Object.fromEntries((pr.data || []).map(p => [p.id, p]));
   const hrs = (inIso, outIso) => outIso ? Math.round(((new Date(outIso) - new Date(inIso)) / 3600000) * 10) / 10 : null;
   const workers = (ts.data || []).map(t => ({
-    id: t.id, kind: "worker", name: pmap[t.worker_id]?.full_name || "Worker", role: pmap[t.worker_id]?.role || "worker",
+    id: t.id, worker_id: t.worker_id, kind: "worker", name: pmap[t.worker_id]?.full_name || "Worker", role: pmap[t.worker_id]?.role || "worker",
     inIso: t.clock_in, outIso: t.clock_out, hours: t.hours_worked ?? hrs(t.clock_in, t.clock_out),
   }));
   const visits = (sv.data || []).map(v => ({
