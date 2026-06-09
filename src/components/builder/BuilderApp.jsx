@@ -415,17 +415,18 @@ export default function BuilderApp({ user }) {
   const [openProject, setOpenProject] = useState(null);
   const [initialScreen, setInitialScreen] = useState(null);
   const [focusId, setFocusId] = useState(null);   // entityId to deep-link on the destination screen
+  const [focusKind, setFocusKind] = useState(null); // disambiguates the Commercial hub category
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Open a project from a normal click (no deep-link) vs. from an action item.
-  const openProjectClean = (p) => { setInitialScreen(null); setFocusId(null); setOpenProject(p); };
+  const openProjectClean = (p) => { setInitialScreen(null); setFocusId(null); setFocusKind(null); setOpenProject(p); };
   const openAction = (item) => {
     const t = item.target;
     if (t.kind === "timesheet") { navigate("labour"); return; }
     const proj = projects.find(p => p.id === t.projectId);
-    if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setFocusId(t.entityId || null); setOpenProject(proj); }
+    if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setFocusId(t.entityId || null); setFocusKind(t.kind); setOpenProject(proj); }
   };
 
   useEffect(() => {
@@ -448,7 +449,7 @@ export default function BuilderApp({ user }) {
   // Give the builder the same project-centric header as the supervisor, incl. an
   // in-context switcher so they can hop between jobs without returning to the list.
   if (openProject) {
-    const switchProject = (id) => { const p = projects.find(x => x.id === id); if (p) { setInitialScreen(null); setFocusId(null); setOpenProject(p); } };
+    const switchProject = (id) => { const p = projects.find(x => x.id === id); if (p) { setInitialScreen(null); setFocusId(null); setFocusKind(null); setOpenProject(p); } };
     return (
       <ProjectDashboard
         key={openProject.id}
@@ -457,7 +458,8 @@ export default function BuilderApp({ user }) {
         maxWidth={560}
         initialScreen={initialScreen}
         focusId={focusId}
-        onSwitchProject={(pid, key, entityId = null) => { setInitialScreen(key); setFocusId(entityId); setOpenProject(projects.find(x => x.id === pid) || openProject); }}
+        focusKind={focusKind}
+        onSwitchProject={(pid, key, entityId = null) => { setInitialScreen(key); setFocusId(entityId); setFocusKind(null); setOpenProject(projects.find(x => x.id === pid) || openProject); }}
         onBack={() => setOpenProject(null)}
         header={
           <ProjectHeader

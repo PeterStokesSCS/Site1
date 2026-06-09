@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import { getPurchaseOrders, getPoMessages, sendPoMessage } from "../../lib/db";
@@ -65,11 +65,19 @@ function BuilderPoDetail({ po, user, onBack }) {
 }
 
 // ── Builder PO inbox ───────────────────────────────────────────────────────────
-export default function BuilderPosScreen({ project, user, onBack }) {
+export default function BuilderPosScreen({ project, user, onBack, focusId }) {
   const [pos, setPos] = useState(null);
   const [open, setOpen] = useState(null);
 
   useEffect(() => { getPurchaseOrders(project.id).then(({ data }) => setPos(data)); }, [project.id]);
+
+  // Deep-link: open the targeted PO's detail once loaded (one-shot per focusId).
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || !pos || focusedRef.current === focusId) return;
+    const po = pos.find(x => x.id === focusId);
+    if (po) { setOpen(po); focusedRef.current = focusId; }
+  }, [focusId, pos]);
 
   if (open) return <BuilderPoDetail po={open} user={user} onBack={() => setOpen(null)} />;
 

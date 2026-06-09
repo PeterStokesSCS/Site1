@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import FileUploadButton from "./FileUploadButton";
+import { useFocusRow, FOCUS_HL } from "./useFocusRow";
 import { extractReceipt } from "../../lib/ai";
 import { getCommercialItems, createCommercialItem, updateCommercialStatus, getVariations } from "../../lib/db";
 import VariationsList from "./VariationsModule";
@@ -57,7 +58,7 @@ const FILTERS = [
   { key: "draft",    label: "Draft" },
 ];
 
-function CategoryList({ project, user, category, onBack }) {
+function CategoryList({ project, user, category, onBack, focusId }) {
   const [items, setItems] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -68,6 +69,7 @@ function CategoryList({ project, user, category, onBack }) {
 
   const load = () => getCommercialItems(project.id).then(({ data }) => setItems(data.filter(i => i.type === category.key)));
   useEffect(() => { load(); }, [project.id, category.key]);
+  const { rowRef, highlightId } = useFocusRow(focusId, items !== null);
 
   // AI: read the attached document and pre-fill the form for review
   const autoFill = async () => {
@@ -165,7 +167,7 @@ function CategoryList({ project, user, category, onBack }) {
               </div>
               {visible.length === 0 ? <EmptyState icon={category.icon} title={`No ${FILTERS.find(f => f.key === statusFilter)?.label.toLowerCase()} ${category.label.toLowerCase()}`} subtitle="Try another status" />
                 : visible.map(it => (
-                <div key={it.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+                <div key={it.id} ref={rowRef(it.id)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, ...(highlightId === it.id ? FOCUS_HL : null) }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                     <div style={{ flex: 1 }}>
                       {it.ref && <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{it.ref}</div>}
@@ -246,9 +248,18 @@ function CostTracking({ project, onBack }) {
 }
 
 // ── Commercial landing ─────────────────────────────────────────────────────────
-export default function CommercialModule({ project, user, onBack }) {
+// Action-item kinds that resolve to the Commercial hub map to a specific category.
+const KIND_VIEW = { commercial: "receipt", po: "subbie_pos", procurement: "procurement" };
+
+export default function CommercialModule({ project, user, onBack, focusId, focusKind }) {
   const [view, setView] = useState(null);
   const [counts, setCounts] = useState({});
+
+  // Deep-link: route straight into the targeted category (one-shot).
+  const routedRef = useRef(false);
+  useEffect(() => {
+    if (focusKind && !routedRef.current) { const v = KIND_VIEW[focusKind]; if (v) { setView(v); routedRef.current = true; } }
+  }, [focusKind]);
 
   useEffect(() => {
     Promise.all([getCommercialItems(project.id), getVariations(project.id)]).then(([ci, vr]) => {
@@ -262,11 +273,11 @@ export default function CommercialModule({ project, user, onBack }) {
   if (view) {
     const props = { project, user, onBack: () => setView(null) };
     if (view === "variation") return <VariationsList {...props} />;
-    if (view === "procurement") return <ProcurementModule {...props} />;
-    if (view === "subbie_pos") return <BuilderPosScreen {...props} />;
+    if (view === "procurement") return <ProcurementModule {...props} focusId={focusId} />;
+    if (view === "subbie_pos") return <BuilderPosScreen {...props} focusId={focusId} />;
     if (view === "cost") return <CostTracking {...props} />;
     const category = CATEGORIES.find(c => c.key === view);
-    return <CategoryList {...props} category={category} />;
+    return <CategoryList {...props} category={category} focusId={focusId} />;
   }
 
   return (

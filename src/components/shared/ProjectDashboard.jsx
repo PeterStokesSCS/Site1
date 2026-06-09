@@ -76,17 +76,19 @@ function StatRow({ stats, onNav }) {
   );
 }
 
-export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, focusId, onSwitchProject }) {
+export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, focusId, focusKind, onSwitchProject }) {
   const [screen, setScreen] = useState(initialScreen || null);
   // entityId an action item wants opened on the destination screen (deep-link to the exact record).
   const [focus, setFocus] = useState(focusId || null);
+  // kind disambiguates multi-category screens (Commercial: receipt vs po vs procurement).
+  const [focusK, setFocusK] = useState(focusKind || null);
   const health = HEALTH[project.health] || HEALTH.green;
 
   // Deep-link from an action item (parent sets initialScreen + focusId, possibly after switching project).
-  useEffect(() => { if (initialScreen) setScreen(initialScreen); setFocus(focusId || null); }, [initialScreen, focusId]);
+  useEffect(() => { if (initialScreen) setScreen(initialScreen); setFocus(focusId || null); setFocusK(focusKind || null); }, [initialScreen, focusId, focusKind]);
 
   // Open a screen from a normal tile/stat tap — clears any stale deep-link focus.
-  const openScreen = (key) => { setFocus(null); setScreen(key); };
+  const openScreen = (key) => { setFocus(null); setFocusK(null); setScreen(key); };
 
   // Supervisor's "My actions today" — only computed/shown for supervisors here.
   const isSupervisor = user?.role === "supervisor";
@@ -96,7 +98,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
     if (!key) return;
     const eid = item.target.entityId || null;
     if (item.projectId && item.projectId !== project.id && onSwitchProject) onSwitchProject(item.projectId, key, eid);
-    else { setFocus(eid); setScreen(key); }
+    else { setFocus(eid); setFocusK(item.target.kind); setScreen(key); }
   };
 
   if (screen) {
@@ -112,7 +114,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "overview":      return <OverviewScreen {...props} onNav={openScreen} />;
       case "plans":         return <ProjectDocsScreen {...props} />;
       case "photos":        return <PhotosScreen {...props} />;
-      case "commercial":    return <CommercialModule {...props} />;
+      case "commercial":    return <CommercialModule {...props} focusId={focus} focusKind={focusK} />;
       case "timeline":      return user?.role === "supervisor" ? <LookaheadScreen {...props} /> : <TimelineScreen {...props} focusId={focus} />;
       case "inspections":   return <InspectionsModule {...props} focusId={focus} />;
       case "defects":       return <DefectsModule {...props} />;

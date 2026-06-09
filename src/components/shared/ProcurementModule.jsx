@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useFocusRow, FOCUS_HL } from "./useFocusRow";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import { getProcurementItems, createProcurementItem, updateProcurementItem, deleteProcurementItem, getMilestones } from "../../lib/db";
@@ -15,7 +16,7 @@ const STATUS = {
   delivered: { label: "Delivered",color: "#22c55e", bg: "#06200e" },
 };
 
-export default function ProcurementModule({ project, user, onBack }) {
+export default function ProcurementModule({ project, user, onBack, focusId }) {
   const [items, setItems] = useState(null);
   const [milestones, setMilestones] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -27,6 +28,7 @@ export default function ProcurementModule({ project, user, onBack }) {
 
   const load = () => getProcurementItems(project.id).then(({ data }) => setItems(data));
   useEffect(() => { load(); getMilestones(project.id).then(({ data }) => setMilestones(data)); }, [project.id]);
+  const { rowRef, highlightId } = useFocusRow(focusId, items !== null);
   const msName = (id) => milestones.find(m => m.id === id)?.name;
 
   const save = async () => {
@@ -96,7 +98,7 @@ export default function ProcurementModule({ project, user, onBack }) {
             const late = isDeliveryLate(it);
             const mob = mustOrderBy(it.required_by_date, it.lead_time_days);
             return (
-              <div key={it.id} style={{ background: "#141414", border: `1px solid ${breach ? "#ef4444" : late ? "#f59e0b" : "#1e1e1e"}`, borderRadius: 10, padding: "13px 14px", marginBottom: 8 }}>
+              <div key={it.id} ref={rowRef(it.id)} style={{ background: "#141414", border: `1px solid ${breach ? "#ef4444" : late ? "#f59e0b" : "#1e1e1e"}`, borderRadius: 10, padding: "13px 14px", marginBottom: 8, ...(highlightId === it.id ? FOCUS_HL : null) }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, color: "#e8e8e8" }}>{it.item_name}</div>
