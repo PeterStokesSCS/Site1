@@ -17,18 +17,19 @@ export default function SupervisorApp({ user }) {
   const [stats, setStats] = useState({ onSite: 0, tasks: 0, issues: 0, hazards: 0 });
   const [refreshKey, setRefreshKey] = useState(0);
   const [initialScreen, setInitialScreen] = useState(null);
+  const [focusId, setFocusId] = useState(null);   // entityId to deep-link on the destination screen
   const [showMyDashboard, setShowMyDashboard] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // From an action item targeting a different assigned project: switch project + open the screen.
-  const switchToAction = (pid, screenKey) => { setInitialScreen(screenKey); setProjectId(pid); };
+  // From an action item targeting a different assigned project: switch project + open the screen at the record.
+  const switchToAction = (pid, screenKey, entityId = null) => { setInitialScreen(screenKey); setFocusId(entityId); setProjectId(pid); };
 
   // From the personal dashboard's action queue: resolve the screen, switch project, close overlay.
   const openActionFromMyDashboard = (item) => {
     const key = KIND_TO_PROJECT_SCREEN[item.target?.kind];
     if (!key) return;
     setShowMyDashboard(false);
-    switchToAction(item.projectId || projectId, key);
+    switchToAction(item.projectId || projectId, key, item.target?.entityId || null);
   };
 
   // Persist the last viewed project so the app reopens where the supervisor left off
@@ -98,6 +99,7 @@ export default function SupervisorApp({ user }) {
       maxWidth={430}
       stats={stats}
       initialScreen={initialScreen}
+      focusId={focusId}
       onSwitchProject={switchToAction}
       badges={{ tasks: stats.tasks, issues: stats.issues, safety: stats.hazards, attendance: stats.onSite }}
       header={

@@ -76,12 +76,17 @@ function StatRow({ stats, onNav }) {
   );
 }
 
-export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, onSwitchProject }) {
+export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, focusId, onSwitchProject }) {
   const [screen, setScreen] = useState(initialScreen || null);
+  // entityId an action item wants opened on the destination screen (deep-link to the exact record).
+  const [focus, setFocus] = useState(focusId || null);
   const health = HEALTH[project.health] || HEALTH.green;
 
-  // Deep-link from an action item (parent sets initialScreen, possibly after switching project).
-  useEffect(() => { if (initialScreen) setScreen(initialScreen); }, [initialScreen]);
+  // Deep-link from an action item (parent sets initialScreen + focusId, possibly after switching project).
+  useEffect(() => { if (initialScreen) setScreen(initialScreen); setFocus(focusId || null); }, [initialScreen, focusId]);
+
+  // Open a screen from a normal tile/stat tap — clears any stale deep-link focus.
+  const openScreen = (key) => { setFocus(null); setScreen(key); };
 
   // Supervisor's "My actions today" — only computed/shown for supervisors here.
   const isSupervisor = user?.role === "supervisor";
@@ -89,21 +94,22 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
   const onAction = (item) => {
     const key = KIND_TO_PROJECT_SCREEN[item.target.kind];
     if (!key) return;
-    if (item.projectId && item.projectId !== project.id && onSwitchProject) onSwitchProject(item.projectId, key);
-    else setScreen(key);
+    const eid = item.target.entityId || null;
+    if (item.projectId && item.projectId !== project.id && onSwitchProject) onSwitchProject(item.projectId, key, eid);
+    else { setFocus(eid); setScreen(key); }
   };
 
   if (screen) {
-    const props = { project, user, onBack: () => setScreen(null) };
+    const props = { project, user, onBack: () => { setScreen(null); setFocus(null); } };
     switch (screen) {
       case "tasks":         return <TasksFeature {...props} />;
       case "issues":        return <IssuesFeature {...props} />;
       case "attendance":    return <OnSiteFeature {...props} />;
       case "safety":        return <SafetyScreen {...props} />;
       case "dailyLog":      return <DailyLogScreen {...props} />;
-      case "variations":    return <VariationsList {...props} />;
+      case "variations":    return <VariationsList {...props} focusId={focus} />;
       case "communication": return <ChatScreen {...props} />;
-      case "overview":      return <OverviewScreen {...props} onNav={setScreen} />;
+      case "overview":      return <OverviewScreen {...props} onNav={openScreen} />;
       case "plans":         return <ProjectDocsScreen {...props} />;
       case "photos":        return <PhotosScreen {...props} />;
       case "commercial":    return <CommercialModule {...props} />;
@@ -131,7 +137,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
         {isSupervisor && <ActionQueue items={actionItems} title="My actions today" max={10} onOpen={onAction} allClear="You're all caught up" />}
         {stats ? (
-          <StatRow stats={stats} onNav={setScreen} />
+          <StatRow stats={stats} onNav={openScreen} />
         ) : (
           <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#666", marginBottom: 6 }}>
@@ -148,7 +154,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
           <div key={g.section} style={{ marginBottom: 16 }}>
             <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, color: "#555", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}>{g.section}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-              {g.tiles.map(t => <AppTile key={t.key} {...t} badge={badges[t.key] || 0} onClick={() => setScreen(t.key)} />)}
+              {g.tiles.map(t => <AppTile key={t.key} {...t} badge={badges[t.key] || 0} onClick={() => openScreen(t.key)} />)}
             </div>
           </div>
         ))}

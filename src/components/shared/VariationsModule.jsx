@@ -468,7 +468,7 @@ function PoIssueForm({ variation: v, request, onIssue, onCancel }) {
 }
 
 // ── Variations list (builder console) ──────────────────────────────────────────
-export default function VariationsList({ project, user, onBack }) {
+export default function VariationsList({ project, user, onBack, focusId }) {
   const [vars, setVars] = useState(null);
   const [editing, setEditing] = useState(null);   // variation being edited, or "new"
   const [preview, setPreview] = useState(null);    // variation shown as formatted document
@@ -499,6 +499,15 @@ export default function VariationsList({ project, user, onBack }) {
     loadPos();
     getProfiles().then(({ data }) => setNameMap(Object.fromEntries((data || []).map(p => [p.id, p.full_name || "Staff"]))));
   }, [project.id]);
+
+  // Deep-link: when an action item targets a specific variation, open its document
+  // once the list has loaded (find-in-loaded-list; one-shot per focusId).
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || !vars || focusedRef.current === focusId) return;
+    const v = vars.find(x => x.id === focusId);
+    if (v) { setPreview(v); focusedRef.current = focusId; }
+  }, [focusId, vars]);
 
   // Issue a PO to the subbie on an approved variation (PO value = builder cost, excl margin).
   const issuePo = async (v, req, fields) => {

@@ -47,16 +47,17 @@ export default function ActionQueue({ items, title, onOpen, max, allClear = "Not
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {shown.map(it => {
             const p = PILL[it.priority] || PILL.low;
+            // Whole card is the tap target (mobile pattern) — no separate "Open" button.
             return (
-              <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#171717", border: "1px solid #222", borderRadius: 9, padding: "9px 11px" }}>
+              <button key={it.id} onClick={() => onOpen(it)} style={{ display: "flex", alignItems: "center", gap: 10, background: "#171717", border: "1px solid #222", borderRadius: 9, padding: "10px 11px", width: "100%", textAlign: "left", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
                 <div style={{ width: 5, alignSelf: "stretch", minHeight: 30, borderRadius: 3, background: p.c, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: "#e8e8e8", lineHeight: 1.3 }}>{it.description}</div>
                   <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{it.projectName}{it.ageHours != null ? ` · ${ageLabel(it.ageHours)}` : ""}</div>
                 </div>
                 <span style={{ fontSize: 9, fontFamily: "Barlow Condensed, sans-serif", color: p.c, background: p.bg, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>{p.label}</span>
-                <button onClick={() => onOpen(it)} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, cursor: "pointer", flexShrink: 0 }}>Open</button>
-              </div>
+                <span style={{ color: "#666", fontSize: 18, flexShrink: 0 }}>›</span>
+              </button>
             );
           })}
           {max && items.length > max && <div style={{ fontSize: 11, color: "#555", textAlign: "center", paddingTop: 4 }}>+{items.length - max} more</div>}
