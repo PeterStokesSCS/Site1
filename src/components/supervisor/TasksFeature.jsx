@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import BackHeader from "../shared/BackHeader";
 import { Skeleton, EmptyState } from "../shared/LoadingScreen";
 import { getTasksByProject, updateTaskStatus, createTask, getProfiles } from "../../lib/db";
+import { melbourneTodayStr } from "../../lib/actionQueue";
 import { supabase } from "../../lib/supabase";
 import { post } from "../../lib/webhook";
 import PhotoAttach from "../shared/PhotoAttach";
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = melbourneTodayStr();
 const addDayStr = (ds, n) => { const d = new Date(`${ds}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 const PRIORITY = {
@@ -38,7 +39,9 @@ function isDueToday(task) {
 function taskSection(tasks) {
   const overdue   = tasks.filter(isOverdue);
   const today     = tasks.filter(isDueToday);
-  const upcoming  = tasks.filter(t => t.status !== "completed" && t.due_date > TODAY);
+  // Exhaustive catch-all: every non-completed task that isn't overdue or today —
+  // including tasks with NO due date — so nothing can be saved but rendered nowhere.
+  const upcoming  = tasks.filter(t => t.status !== "completed" && !isOverdue(t) && !isDueToday(t));
   const completed = tasks.filter(t => t.status === "completed");
   return { overdue, today, upcoming, completed };
 }
