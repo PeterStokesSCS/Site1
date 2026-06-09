@@ -144,9 +144,19 @@ role/column-level RLS — see R5/R6 — and are now empirically confirmed, not j
 
 After Phase 3, the subcontractor test also passes (org gate removed the cross-org POs; the
 subbie now sees none of org A's POs as they aren't a project member — over-restrictive but
-not a leak). The 3 still-failing RBAC cases → **Stage 3 role RLS** (next):
-`purchase_orders` and `variations` reads must be gated to builder/office + the project's
-supervisor + (for POs) the issued subcontractor — excluding field staff and clients.
+not a leak).
+
+#### 5.2a AFTER Stage 3a (2026-06-10) — ✅ RBAC GREEN (for tested tables)
+Applied `supabase_migration_rls_stage3a_commercial.sql`. Re-ran: **all 7 RBAC tests pass.**
+Field staff and clients can no longer read `purchase_orders`/`variations`; subbie sees only
+their own POs; client variation-approval path preserved (client kept in read+write).
+**Whole sandbox suite: 24 pass / 0 fail / 3 skip (audit — migration pending).**
+
+> Still open (R6b): the OTHER `using(true)`-only tables (`qa_items`, `defects`, `blockers`,
+> `commercial_items`, `task_comments`, `issue_comments`, `subbie_requests`, `po_messages`,
+> `eot_claims`, `procurement_items`, `material_requests`, `documents`, `messages`,
+> `milestones`) still allow blanket within-org access. They're not yet covered by RBAC tests.
+> Stage 3b should give each a proper role-aware policy (and add tests) before rollout.
 
 ### 5.3 Load — `npm run load:smoke|100|250|500|1000`
 k6 against Supabase REST/Auth as seeded sandbox users (~85% read / 15% write). Thresholds:
