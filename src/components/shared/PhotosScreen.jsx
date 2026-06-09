@@ -7,6 +7,7 @@ import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES, categoryMeta } from "../../lib/photoUtils";
 import { getPhotos, addPhoto, updatePhotoCaption, updatePhotoCategory, setPhotoClientVisible, deletePhoto } from "../../lib/db";
 import { removeFile } from "../../lib/storage";
+import { SignedImage } from "./SignedMedia";
 
 // Full-screen photo viewer with editable caption, category + client-visible toggle
 function Lightbox({ photo, onClose, onCaption, onCategory, onClientChange, onDelete, canSetClient, canDelete }) {
@@ -40,7 +41,7 @@ function Lightbox({ photo, onClose, onCaption, onCategory, onClientChange, onDel
         <button onClick={onClose} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>✕</button>
       </div>
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "0 12px" }}>
-        <img src={photo.url} alt={photo.caption || "site photo"} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
+        <SignedImage value={photo.url} alt={photo.caption || "site photo"} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
       </div>
       <div style={{ padding: "16px", maxWidth: 480, margin: "0 auto", width: "100%" }}>
         <div style={{ fontSize: 12, color: "#888", marginBottom: 6 }}>
@@ -227,7 +228,7 @@ export default function PhotosScreen({ project, user, onBack }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
             {shown.map(p => (
               <button key={p.id} onClick={() => setLightbox(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#141414", position: "relative" }}>
-                <img src={p.url} alt={p.caption || "site photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <SignedImage value={p.url} alt={p.caption || "site photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 <div style={{ position: "absolute", top: 3, left: 3 }}><CategoryBadge category={p.category || "general"} /></div>
                 {p.client_visible && <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 4px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>}
                 {p.caption && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent, rgba(0,0,0,0.8))", color: "#fff", fontSize: 10, padding: "12px 6px 5px", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.caption}</div>}

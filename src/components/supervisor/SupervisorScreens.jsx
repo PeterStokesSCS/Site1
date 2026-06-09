@@ -8,6 +8,7 @@ import {
   getVariations, createVariationLabour,
 } from "../../lib/db";
 import FileUploadButton from "../shared/FileUploadButton";
+import { SignedImage } from "../shared/SignedMedia";
 import { post } from "../../lib/webhook";
 import { melbourneTodayStr } from "../../lib/actionQueue";
 import { fetchWeather } from "../../lib/weather";
@@ -407,7 +408,7 @@ export function ChatScreen({ project, user, onBack }) {
                 <div style={{ fontSize: 10, color: "#444", marginBottom: 3 }}>{msg.sender?.full_name || "Unknown"}</div>
                 <div style={{ maxWidth: "80%", background: out ? "#2a1800" : "#1a1a1a", border: `1px solid ${out ? "#3a2200" : "#222"}`, borderRadius: out ? "12px 12px 2px 12px" : "12px 12px 12px 2px", padding: msg.image_url ? 4 : "10px 14px", fontSize: 14, color: "#ccc", lineHeight: 1.5 }}>
                   {msg.image_url && (
-                    <img src={msg.image_url} alt={msg.content || "photo"} onClick={() => setView(msg.image_url)}
+                    <SignedImage value={msg.image_url} alt={msg.content || "photo"} onClick={() => setView(msg.image_url)}
                       style={{ display: "block", maxWidth: 220, maxHeight: 260, borderRadius: 9, cursor: "pointer", objectFit: "cover" }} />
                   )}
                   {msg.content && <div style={{ padding: msg.image_url ? "7px 10px 4px" : 0 }}>{msg.content}</div>}
@@ -431,7 +432,7 @@ export function ChatScreen({ project, user, onBack }) {
             <button onClick={() => setView(null)} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>✕</button>
           </div>
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px 24px" }}>
-            <img src={view} alt="photo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
+            <SignedImage value={view} alt="photo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
           </div>
         </div>
       )}

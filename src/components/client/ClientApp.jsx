@@ -8,6 +8,7 @@ import { TILES } from "../../lib/theme";
 import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos, updateVariation } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
 import { post } from "../../lib/webhook";
+import { SignedImage, SignedLink } from "../shared/SignedMedia";
 
 // Client progress gallery — only photos the team marked visible to the client
 function ClientPhotosScreen({ project, onBack }) {
@@ -23,7 +24,7 @@ function ClientPhotosScreen({ project, onBack }) {
           : <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 4 }}>
               {photos.map(p => (
                 <button key={p.id} onClick={() => setView(p)} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#141414" }}>
-                  <img src={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <SignedImage value={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </button>
               ))}
             </div>
@@ -32,7 +33,7 @@ function ClientPhotosScreen({ project, onBack }) {
       {view && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column" }} onClick={() => setView(null)}>
           <div style={{ display: "flex", justifyContent: "flex-end", padding: 14 }}><button onClick={() => setView(null)} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 20, width: 40, height: 40 }}>✕</button></div>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px" }}><img src={view.url} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} /></div>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px" }}><SignedImage value={view.url} alt="" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} /></div>
           {view.caption && <div style={{ padding: 16, color: "#ccc", fontSize: 14, textAlign: "center" }}>{view.caption}</div>}
         </div>
       )}
@@ -351,7 +352,7 @@ function VariationsScreen({ project, user, onBack, focusId }) {
                   <button onClick={() => setSigning(v)} style={{ width: "100%", marginTop: 12, padding: "12px", borderRadius: 10, border: "none", background: "#0ea5e9", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer", letterSpacing: 0.5 }}>✍ REVIEW & SIGN</button>
                 )}
                 {v.signed_pdf_url && (
-                  <a href={v.signed_pdf_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 13, color: "#3b82f6", textDecoration: "none" }}>📄 Download signed variation (PDF)</a>
+                  <SignedLink value={v.signed_pdf_url} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 13, color: "#3b82f6", textDecoration: "none" }}>📄 Download signed variation (PDF)</SignedLink>
                 )}
               </div>
               );

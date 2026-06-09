@@ -12,6 +12,7 @@ import LabourHub from "./LabourHub";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import TeamMemberDetail from "./TeamMemberDetail";
+import { SignedImage } from "../shared/SignedMedia";
 
 const LAST_PROJECT_KEY = "scs_builder_last_project";
 
@@ -496,7 +497,7 @@ function VisibilityReview({ onBack }) {
           : reqs.map(r => (
             <div key={r.table + r.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: 14, marginBottom: 10, display: "flex", gap: 12, alignItems: "center" }}>
               {r.kind === "photo"
-                ? <img src={r.url} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "#000" }} />
+                ? <SignedImage value={r.url} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "#000" }} />
                 : <div style={{ width: 64, height: 64, borderRadius: 8, background: "#251200", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>🔧</div>}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 10, color: "#777", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase" }}>{r.kind}</div>

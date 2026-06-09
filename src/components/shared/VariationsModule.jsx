@@ -5,6 +5,7 @@ import FileUploadButton from "./FileUploadButton";
 import letterheadUrl from "../../assets/letterhead.png";
 import { getVariations, createVariation, updateVariation, deleteVariation, getProfiles, getSubbieRequests, updateSubbieRequest, createPurchaseOrder, getPurchaseOrders } from "../../lib/db";
 import { uploadFile } from "../../lib/storage";
+import { SignedLink } from "./SignedMedia";
 import { convertVariation } from "../../lib/ai";
 import { post } from "../../lib/webhook";
 import { downloadPdf, generatePdfBlob } from "../../lib/variationPdf";
@@ -296,7 +297,7 @@ function VariationPreview({ variation: v, project, vars, user, canSeeMargin, nam
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: "1px solid #1e1e1e", background: "#0c0c0c", flexWrap: "wrap" }}>
         <button onClick={doDownload} style={{ ...pbtn("#6366f1", true), flex: "0 0 auto", padding: "8px 14px", fontSize: 13 }}>⬇ Download PDF</button>
         {v.status === "approved" && !v.signed_pdf_url && <button onClick={saveSignedPdf} style={{ ...pbtn("#22c55e", true), flex: "0 0 auto", padding: "8px 14px", fontSize: 13 }}>💾 Save signed PDF</button>}
-        {v.signed_pdf_url && <a href={v.signed_pdf_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#22c55e", textDecoration: "none", fontFamily: "Barlow Condensed, sans-serif" }}>✓ Signed PDF saved — view ↗</a>}
+        {v.signed_pdf_url && <SignedLink value={v.signed_pdf_url} style={{ fontSize: 12, color: "#22c55e", textDecoration: "none", fontFamily: "Barlow Condensed, sans-serif" }}>✓ Signed PDF saved — view ↗</SignedLink>}
         {pdfMsg && <span style={{ fontSize: 12, color: "#888" }}>{pdfMsg}</span>}
       </div>
 

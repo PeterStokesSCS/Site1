@@ -5,6 +5,7 @@ import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES } from "../../lib/photoUtils";
 import { getPhotosForRecord, addPhoto, setPhotoClientVisible, requestClientVisibility, deletePhoto } from "../../lib/db";
 import { removeFile } from "../../lib/storage";
+import { SignedImage } from "./SignedMedia";
 
 // Reusable photo block for any record (issue, task, hazard, daily log, defect…).
 // Photos attach to the record AND appear in the project Photos gallery.
@@ -84,7 +85,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 12 }}>
           {photos.map(p => (
             <button key={p.id} onClick={() => { setConfirmDel(false); setView(p); }} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#1a1a1a", position: "relative" }}>
-              <img src={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <SignedImage value={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               <div style={{ position: "absolute", top: 3, left: 3 }}><CategoryBadge category={p.category || "general"} /></div>
               {p.client_visible
                 ? <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 3px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>
@@ -132,7 +133,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
             <button onClick={() => setView(null)} style={{ background: "#1e1e1e", border: "none", borderRadius: 10, color: "#fff", fontSize: 20, width: 40, height: 40, cursor: "pointer" }}>✕</button>
           </div>
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 12px" }} onClick={e => e.stopPropagation()}>
-            <img src={view.url} alt={view.caption || "photo"} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
+            <SignedImage value={view.url} alt={view.caption || "photo"} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: 8 }} />
           </div>
           <div style={{ padding: 16, maxWidth: 480, margin: "0 auto", width: "100%" }} onClick={e => e.stopPropagation()}>
             <div style={{ marginBottom: 8 }}><CategoryBadge category={view.category || "general"} size="lg" /></div>
