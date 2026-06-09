@@ -517,6 +517,9 @@ export default function BuilderApp({ user }) {
   // From the company Commercial tab: open a variation inside its project (reuses the deep-link).
   const openVariationInProject = (proj, varId) => { setInitialScreen("variations"); setFocusId(varId || null); setFocusKind(null); open(proj); };
 
+  // Company spine: jump from inside a project straight to a company-level tab (one tap).
+  const goCompany = (tabId) => { setInitialScreen(null); setFocusId(null); setFocusKind(null); setProjectFilter(null); setTab(tabId); setOpenProject(null); };
+
   const handleApprove = async (id) => {
     await approveTimesheet(id, user.id);
     setTimesheets(prev => prev.map(t => t.id === id ? { ...t, status: "approved" } : t));
@@ -544,6 +547,7 @@ export default function BuilderApp({ user }) {
             projects={projects}
             user={user}
             onSwitch={projects.length > 1 ? switchProject : null}
+            companyNav={{ tabs: TABS, onSelect: goCompany }}
           />
         }
       />

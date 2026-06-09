@@ -4,7 +4,7 @@ import { HEALTH } from "../../lib/theme";
 // Real Supabase rows use snake_case (job_number); legacy/mock used camelCase (jobNumber).
 const jobNumberOf = (p) => p.job_number ?? p.jobNumber;
 
-export default function ProjectHeader({ project, projects = [], onSwitch, user, rightSlot, onAvatarClick }) {
+export default function ProjectHeader({ project, projects = [], onSwitch, user, rightSlot, onAvatarClick, companyNav }) {
   const [showPicker, setShowPicker] = useState(false);
   const health = HEALTH[project.health] || HEALTH.green;
   const switchList = projects.length ? projects : [project];
@@ -73,6 +73,22 @@ export default function ProjectHeader({ project, projects = [], onSwitch, user, 
             {onSwitch && <span style={{ color: "#444", fontSize: 12 }}>▾</span>}
           </div>
         </button>
+
+        {/* Company spine — jump to any company area in one tap from inside a project */}
+        {companyNav && (
+          <div style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            {companyNav.tabs.map(t => (
+              <button key={t.id} onClick={() => companyNav.onSelect(t.id)} style={{
+                flex: "1 0 auto", minWidth: 54, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                padding: "7px 6px", borderRadius: 9, border: "1px solid #2a2a2a", background: "#161616", color: "#999",
+                cursor: "pointer", WebkitTapHighlightColor: "transparent",
+              }}>
+                <span style={{ fontSize: 16 }}>{t.icon}</span>
+                <span style={{ fontSize: 9, fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", letterSpacing: 0.3, whiteSpace: "nowrap" }}>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Project switcher modal */}
