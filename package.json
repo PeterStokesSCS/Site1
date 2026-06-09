@@ -9,7 +9,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "playwright test",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "sandbox:seed": "node tests/sandbox/seed.mjs",
+    "sandbox:reset": "node tests/sandbox/reset.mjs",
+    "sandbox:reseed": "node tests/sandbox/reset.mjs && node tests/sandbox/seed.mjs",
+    "sandbox:test": "vitest run --config vitest.sandbox.config.js",
+    "predeploy:check": "vitest run && vitest run --config vitest.sandbox.config.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

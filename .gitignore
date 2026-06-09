@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 .env
+.env.test
+
+# Sandbox / load-test artifacts (contain seeded ids; never commit)
+tests/sandbox/.manifest.json
+tests/load/*-summary.json
 
 # Editor directories and files
 .vscode/*

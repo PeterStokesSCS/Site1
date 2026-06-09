@@ -5,6 +5,11 @@
 -- replacing the old GLOBAL role check). WITH CHECK is evaluated after the BEFORE-INSERT
 -- trigger fills org_id, so legitimate inserts (org_id = the project's org = the user's org) pass.
 
+-- Safety guard: any task with a NULL org_id would be hidden by the tenant read policy
+-- (NULL in (...) is never true). Backfill from the parent project before locking RLS down.
+update tasks t set org_id = p.org_id
+  from projects p where t.project_id = p.id and t.org_id is null;
+
 drop policy if exists "tasks_read" on tasks;
 drop policy if exists "tasks_write" on tasks;
 
