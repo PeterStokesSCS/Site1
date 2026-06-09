@@ -192,7 +192,42 @@ function TaskDetail({ task: initial, user, onBack }) {
 }
 
 // ── Task List ──────────────────────────────────────────────────────────────────
-function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId, initialFilter }) {
+// #7 — confirmation after creating a task (so it's clear where it went)
+function TaskCreatedScreen({ task, projectName, onView, onAnother, onDone }) {
+  const due = task.due_date ? `${new Date(task.due_date).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}${task.due_time ? ` · ${task.due_time.slice(0, 5)}` : ""}` : "No date";
+  const rows = [
+    { l: "Task", v: task.title },
+    { l: "Assigned to", v: task.assignee?.full_name || "Unassigned" },
+    ...(projectName ? [{ l: "Project", v: projectName }] : []),
+    { l: "Due", v: due },
+    { l: "Priority", v: (PRIORITY[task.priority] || PRIORITY.medium).label },
+    { l: "Status", v: (STATUS[task.status] || STATUS.todo).label },
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Task Created" onBack={onDone} />
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 16px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ fontSize: 56, marginBottom: 6 }}>✅</div>
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 24, color: "#22c55e", marginBottom: 18 }}>TASK CREATED</div>
+        <div style={{ width: "100%", maxWidth: 420, background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "4px 16px", marginBottom: 20 }}>
+          {rows.map(r => (
+            <div key={r.l} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 0", borderBottom: "1px solid #1a1a1a" }}>
+              <span style={{ fontSize: 12, color: "#777", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase", letterSpacing: 0.4 }}>{r.l}</span>
+              <span style={{ fontSize: 14, color: "#e8e8e8", textAlign: "right", minWidth: 0 }}>{r.v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={onView} style={{ padding: "14px", borderRadius: 10, border: "none", background: "#e07b39", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, letterSpacing: 0.5, cursor: "pointer" }}>VIEW TASK</button>
+          <button onClick={onAnother} style={{ padding: "14px", borderRadius: 10, border: "1px solid #2a2a2a", background: "transparent", color: "#e07b39", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>+ CREATE ANOTHER</button>
+          <button onClick={onDone} style={{ padding: "12px", borderRadius: 10, border: "none", background: "transparent", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: "pointer" }}>BACK TO TASKS</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId, projectName, initialFilter }) {
   const [filter, setFilter] = useState(initialFilter || "all");
   const [selectedTask, setSelectedTask] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -200,10 +235,15 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
   const [allTasks, setAllTasks] = useState(tasks);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [justCreated, setJustCreated] = useState(null); // success screen after creating (#7)
 
   useEffect(() => { setAllTasks(tasks); }, [tasks]);
 
   if (selectedTask) return <TaskDetail task={selectedTask} user={user} onBack={() => setSelectedTask(null)} />;
+  if (justCreated) return <TaskCreatedScreen task={justCreated} projectName={projectName}
+    onView={() => { const t = justCreated; setJustCreated(null); setSelectedTask(t); }}
+    onAnother={() => { setJustCreated(null); setShowForm(true); }}
+    onDone={() => setJustCreated(null)} />;
 
   const toggle = async (task) => {
     const s = task.status === "completed" ? "todo" : "completed";
@@ -234,8 +274,9 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
     setAllTasks(prev => [created, ...prev]);
     setShowForm(false);
     setForm({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
-    // Open the new task so photos / PDFs / drawings can be attached straight away (H11)
-    setSelectedTask(created);
+    // Confirmation screen so the supervisor sees where the task went (#7) — View Task
+    // then lets them add photos/attachments (preserves H11).
+    setJustCreated(created);
   };
 
   const filtered = filter === "all" ? allTasks.filter(t => t.status !== "completed")
@@ -359,32 +400,37 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
   }, [focusId, tasks]);
 
   const myTasks      = tasks.filter(t => t.assignee_id === user.id);
+  const createdByMe  = tasks.filter(t => t.created_by === user.id);             // #8
   const projectTasks = tasks;
   const otherTasks   = tasks.filter(t => t.assignee_id && t.assignee_id !== user.id);
 
   const overdueCount = (list) => list.filter(isOverdue).length;
   const todayCount   = (list) => list.filter(isDueToday).length;
+  const openCount    = (list) => list.filter(t => t.status !== "completed").length;
+  const toLanding = () => { setView("landing"); setGroupFilter(null); };
+  const common = { loading, user, workers, projectId: project.id, projectName: project.street };
 
   if (focusTask)          return <TaskDetail task={focusTask} user={user} onBack={() => setFocusTask(null)} />;
-  if (view === "mine")    return <TaskList title="My Tasks"      tasks={myTasks}      loading={loading} user={user} onBack={() => setView("landing")} workers={workers} projectId={project.id} />;
-  if (view === "project") return <TaskList title="Project Tasks" tasks={projectTasks} loading={loading} user={user} onBack={() => { setView("landing"); setGroupFilter(null); }} workers={workers} projectId={project.id} initialFilter={groupFilter} />;
+  if (view === "mine")    return <TaskList title="Assigned to Me" tasks={myTasks}      onBack={toLanding} {...common} />;
+  if (view === "created") return <TaskList title="Created by Me"  tasks={createdByMe}  onBack={toLanding} {...common} />;
+  if (view === "project") return <TaskList title="Project Tasks"  tasks={projectTasks} onBack={toLanding} initialFilter={groupFilter} {...common} />;
   if (view === "others")  return <OthersTasksList tasks={otherTasks} workers={workers} user={user} onBack={() => setView("landing")} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
       <BackHeader title="Tasks" subtitle={project.street} onBack={onBack} />
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        <LandingTile title="My Tasks" subtitle="Tasks assigned to or raised by you" icon="✅" accent="#f59e0b" bg="#251d00"
-          badge={overdueCount(myTasks)} badgeColor="#ef4444"
-          badge2={todayCount(myTasks)} badge2Color="#f97316"
+        <LandingTile title="Assigned to Me" subtitle="Tasks assigned to you" icon="✅" accent="#f59e0b" bg="#251d00"
+          badge={overdueCount(myTasks)} badgeColor="#ef4444" badge2={openCount(myTasks)} badge2Color="#888"
           onClick={() => setView("mine")} />
+        <LandingTile title="Created by Me" subtitle="Tasks you raised & assigned to others" icon="📝" accent="#a855f7" bg="#1a0c33"
+          badge={overdueCount(createdByMe)} badgeColor="#ef4444" badge2={openCount(createdByMe)} badge2Color="#888"
+          onClick={() => setView("created")} />
         <LandingTile title="Project Tasks" subtitle={`All tasks on ${project.street}`} icon="🏗" accent="#e07b39" bg="#2a1800"
-          badge={overdueCount(projectTasks)} badgeColor="#ef4444"
-          badge2={todayCount(projectTasks)} badge2Color="#f97316"
+          badge={overdueCount(projectTasks)} badgeColor="#ef4444" badge2={openCount(projectTasks)} badge2Color="#888"
           onClick={() => setView("project")} />
-        <LandingTile title="Team Tasks" subtitle="Tasks assigned to the rest of the team" icon="👷" accent="#3b82f6" bg="#0c1a33"
-          badge={overdueCount(otherTasks)} badgeColor="#ef4444"
-          badge2={todayCount(otherTasks)} badge2Color="#f97316"
+        <LandingTile title="Team Tasks" subtitle="Assigned to the rest of the team" icon="👷" accent="#3b82f6" bg="#0c1a33"
+          badge={overdueCount(otherTasks)} badgeColor="#ef4444" badge2={openCount(otherTasks)} badge2Color="#888"
           onClick={() => setView("others")} />
       </div>
     </div>
