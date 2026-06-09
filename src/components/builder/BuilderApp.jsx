@@ -12,6 +12,8 @@ import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import TeamMemberDetail from "./TeamMemberDetail";
 
+const LAST_PROJECT_KEY = "scs_builder_last_project";
+
 // Company-level spine (5 tabs). "Commercial" reads distinctly from the in-project
 // Commercial → Variations; Safety lives inside each project's dashboard, not here.
 const TABS = [
@@ -66,7 +68,7 @@ function ProjectCard({ project, onOpen }) {
 }
 
 // ── Dashboard tab ──────────────────────────────────────────────────────────────
-function DashboardTab({ projects, timesheets, onNavigate, onOpenProject, user, onOpenAction }) {
+function DashboardTab({ projects, timesheets, onNavigate, onOpenProject, user, onOpenAction, lastProject }) {
   const active = projects.filter(p => p.status === "active").length;
   const pendingTs = timesheets.filter(t => t.status === "pending").length;
   const { items: actionItems } = useActionItems("builder", user.id);
@@ -77,6 +79,18 @@ function DashboardTab({ projects, timesheets, onNavigate, onOpenProject, user, o
         <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 30, fontWeight: 700, color: "#f0f0f0" }}>Company Dashboard</div>
         <div style={{ fontSize: 14, color: "#555", marginTop: 4 }}>{new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div>
       </div>
+
+      {/* One-tap return to the last project worked on (builder remembers it across sessions) */}
+      {lastProject && (
+        <button onClick={() => onOpenProject(lastProject)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, background: "#1a1206", border: "1px solid #e07b3955", borderRadius: 12, padding: "12px 16px", marginBottom: 16, cursor: "pointer", textAlign: "left" }}>
+          <span style={{ fontSize: 18 }}>↩</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: "#e0a060", textTransform: "uppercase", letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif" }}>Resume last project</div>
+            <div style={{ fontSize: 15, color: "#f0f0f0", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastProject.street}{lastProject.job_number ? ` · ${lastProject.job_number}` : ""}</div>
+          </div>
+          <span style={{ color: "#e07b39", fontSize: 20 }}>›</span>
+        </button>
+      )}
 
       <ActionQueue items={actionItems} title="Action Queue" onOpen={onOpenAction} allClear="No outstanding actions" />
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 28 }}>
@@ -474,15 +488,19 @@ export default function BuilderApp({ user }) {
   const [focusKind, setFocusKind] = useState(null); // disambiguates the Commercial hub category
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
+  const [lastProjectId, setLastProjectId] = useState(() => { try { return localStorage.getItem(LAST_PROJECT_KEY); } catch { return null; } });
   const [loading, setLoading] = useState(true);
 
+  // Remember the last project worked on so returning is one tap (persists across sessions).
+  const open = (p) => { setLastProjectId(p.id); try { localStorage.setItem(LAST_PROJECT_KEY, p.id); } catch { /* ignore */ } setOpenProject(p); };
+
   // Open a project from a normal click (no deep-link) vs. from an action item.
-  const openProjectClean = (p) => { setInitialScreen(null); setFocusId(null); setFocusKind(null); setOpenProject(p); };
+  const openProjectClean = (p) => { setInitialScreen(null); setFocusId(null); setFocusKind(null); open(p); };
   const openAction = (item) => {
     const t = item.target;
     if (t.kind === "timesheet") { navigate("labour"); return; }
     const proj = projects.find(p => p.id === t.projectId);
-    if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setFocusId(t.entityId || null); setFocusKind(t.kind); setOpenProject(proj); }
+    if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setFocusId(t.entityId || null); setFocusKind(t.kind); open(proj); }
   };
 
   useEffect(() => {
@@ -497,7 +515,7 @@ export default function BuilderApp({ user }) {
   const navigate = (toTab, filter = null) => { setProjectFilter(filter); setTab(toTab); };
 
   // From the company Commercial tab: open a variation inside its project (reuses the deep-link).
-  const openVariationInProject = (proj, varId) => { setInitialScreen("variations"); setFocusId(varId || null); setFocusKind(null); setOpenProject(proj); };
+  const openVariationInProject = (proj, varId) => { setInitialScreen("variations"); setFocusId(varId || null); setFocusKind(null); open(proj); };
 
   const handleApprove = async (id) => {
     await approveTimesheet(id, user.id);
@@ -508,7 +526,7 @@ export default function BuilderApp({ user }) {
   // Give the builder the same project-centric header as the supervisor, incl. an
   // in-context switcher so they can hop between jobs without returning to the list.
   if (openProject) {
-    const switchProject = (id) => { const p = projects.find(x => x.id === id); if (p) { setInitialScreen(null); setFocusId(null); setFocusKind(null); setOpenProject(p); } };
+    const switchProject = (id) => { const p = projects.find(x => x.id === id); if (p) { setInitialScreen(null); setFocusId(null); setFocusKind(null); open(p); } };
     return (
       <ProjectDashboard
         key={openProject.id}
@@ -518,7 +536,7 @@ export default function BuilderApp({ user }) {
         initialScreen={initialScreen}
         focusId={focusId}
         focusKind={focusKind}
-        onSwitchProject={(pid, key, entityId = null) => { setInitialScreen(key); setFocusId(entityId); setFocusKind(null); setOpenProject(projects.find(x => x.id === pid) || openProject); }}
+        onSwitchProject={(pid, key, entityId = null) => { setInitialScreen(key); setFocusId(entityId); setFocusKind(null); open(projects.find(x => x.id === pid) || openProject); }}
         onBack={() => setOpenProject(null)}
         header={
           <ProjectHeader
@@ -535,7 +553,7 @@ export default function BuilderApp({ user }) {
   const renderTab = () => {
     if (loading) return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[1,2,3].map(i => <CardSkeleton key={i} />)}</div>;
     switch (tab) {
-      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={openProjectClean} user={user} onOpenAction={openAction} />;
+      case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={openProjectClean} user={user} onOpenAction={openAction} lastProject={projects.find(p => p.id === lastProjectId) || null} />;
       case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} onOpenProject={openProjectClean} />;
       case "labour":     return <LabourHub timesheets={timesheets} projects={projects} onApprove={handleApprove} user={user} />;
       case "commercial": return <CompanyCommercialTab projects={projects} onOpenVariation={openVariationInProject} />;
