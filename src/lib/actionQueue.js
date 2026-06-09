@@ -20,7 +20,8 @@ const TZ = "Australia/Melbourne";
 export const CONFIG = {
   signoffOverdueDays: 3,
   dailyLogCutoffHour: 18,
-  labourCutoffHour: 17,   // end-of-day labour cutoff (Tier 2 #7) — Melbourne
+  labourReviewHour: 16,   // builder's daily labour-review window opens 4pm (Melbourne)
+  labourCutoffHour: 17,   // open-shift escalation to the supervisor at 5pm
   shiftMaxHours: 10,
 };
 
@@ -211,14 +212,22 @@ export const REGISTRY = [
   // Tier 2 #7: ONE item per project per day ("Approve today's labour"), never per punch.
   // Derived — resolves when the day's completed shifts are all approved.
   { key: "labour.approve_day", role: "builder", priority: "high", async query() {
-    const { data } = await supabase.from("timesheets").select(`id, project_id, work_date, clock_in, clock_out, hours_worked, status, ${PROJ}`).eq("status", "pending").not("clock_out", "is", null);
     const today = melbourneTodayStr();
-    return groupPendingLabour(data || []).map(g => mk({
-      type: "labour.approve_day", priority: "high", role: "builder", project: g.project,
-      since: melbourneCutoffUtc(g.date).toISOString(),
-      description: `Approve ${g.date === today ? "today's" : g.date} labour — ${g.count} shift${g.count > 1 ? "s" : ""}, ${g.hours}h`,
-      target: { kind: "timesheet", projectId: g.projectId, entityId: g.key },
-    }));
+    const reviewOpen = melbourneHour() >= CONFIG.labourReviewHour; // today's window opens at 4pm
+    const [done, openShifts] = await Promise.all([
+      supabase.from("timesheets").select(`id, project_id, work_date, clock_in, clock_out, hours_worked, status, ${PROJ}`).eq("status", "pending").not("clock_out", "is", null),
+      supabase.from("timesheets").select("project_id").is("clock_out", null),
+    ]);
+    const projectsStillOnSite = new Set((openShifts.data || []).map(t => t.project_id));
+    return groupPendingLabour(done.data || [])
+      // Past days: always. Today: only once the 4pm window is open OR everyone's signed out.
+      .filter(g => g.date < today || reviewOpen || !projectsStillOnSite.has(g.projectId))
+      .map(g => mk({
+        type: "labour.approve_day", priority: "high", role: "builder", project: g.project,
+        since: melbourneCutoffUtc(g.date).toISOString(),
+        description: `Approve ${g.date === today ? "today's" : g.date} labour — ${g.count} shift${g.count > 1 ? "s" : ""}, ${g.hours}h`,
+        target: { kind: "timesheet", projectId: g.projectId, entityId: g.key },
+      }));
   }},
   { key: "po.awaiting_acceptance", role: "builder", priority: "medium", async query() {
     const { data } = await supabase.from("purchase_orders").select(`id, project_id, po_number, status, created_at, subbie:profiles(full_name), ${PROJ}`).eq("status", "issued");

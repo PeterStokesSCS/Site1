@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems, getAllVariations, getPendingVisibilityRequests, approveClientVisibility, rejectClientVisibility } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems, getAllVariations, getPendingVisibilityRequests, approveClientVisibility, rejectClientVisibility, getAttendanceForDay, getVariationLabour, getDailyLogs, approveProjectDayLabour, amendTimesheet } from "../../lib/db";
 import { VIC_MILESTONES } from "../../lib/timeline";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
@@ -514,6 +514,115 @@ function VisibilityReview({ onBack }) {
   );
 }
 
+// ── #5 Daily labour review (one per project per day) ───────────────────────────
+const r1 = (n) => Math.round((n || 0) * 10) / 10;
+const fmtClock = (iso) => iso ? new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true }) : "—";
+const toLocalInput = (iso) => { const d = iso ? new Date(iso) : new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
+
+function LabourReviewScreen({ project, date, user, onBack }) {
+  const [roll, setRoll] = useState(null);
+  const [vlabour, setVlabour] = useState([]);
+  const [log, setLog] = useState(undefined);
+  const [approved, setApproved] = useState(false);
+  const [amendId, setAmendId] = useState(null);
+  const [amendOut, setAmendOut] = useState("");
+  const [amendNote, setAmendNote] = useState("");
+
+  const reload = () => getAttendanceForDay(project.id, date).then(({ data }) => setRoll(data));
+  useEffect(() => {
+    reload();
+    getVariationLabour(project.id).then(({ data }) => setVlabour((data || []).filter(v => String(v.work_date || "").slice(0, 10) === date)));
+    getDailyLogs(project.id).then(({ data }) => setLog((data || []).find(l => String(l.log_date || "").slice(0, 10) === date) || null));
+  }, [project.id, date]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const workers = (roll || []).filter(r => r.kind === "worker");
+  const visitors = (roll || []).filter(r => r.kind === "visit");
+  const totalHours = r1(workers.reduce((s, r) => s + (r.hours || 0), 0));
+  const openShifts = workers.filter(r => !r.outIso);
+  const counts = {}; workers.forEach(r => { counts[r.name] = (counts[r.name] || 0) + 1; });
+  const multi = Object.entries(counts).filter(([, n]) => n > 1).map(([name]) => name);
+  const vlHours = r1(vlabour.reduce((s, v) => s + (Number(v.hours) || 0) * (v.worker_ids?.length || 1), 0));
+  const fmtDate = new Date(`${date}T00:00:00`).toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" });
+
+  const startAmend = (r) => { setAmendId(r.id); setAmendOut(toLocalInput(r.outIso || r.inIso)); setAmendNote(""); };
+  const saveAmend = async (r) => {
+    const outIso = new Date(amendOut).toISOString();
+    const hours = r1((new Date(outIso) - new Date(r.inIso)) / 3600000);
+    await amendTimesheet(r.id, { clock_out: outIso, hours_worked: hours }, user.id, amendNote.trim() || "Amended in labour review");
+    setAmendId(null); reload();
+  };
+  const approveDay = async () => { await approveProjectDayLabour(project.id, date, user.id); setApproved(true); };
+
+  const tile = (val, label, color) => (
+    <div style={{ flex: 1, background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px", textAlign: "center" }}>
+      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 700, color }}>{val}</div>
+      <div style={{ fontSize: 10, color: "#777", textTransform: "uppercase", letterSpacing: 0.3, fontFamily: "Barlow Condensed, sans-serif", marginTop: 2 }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Daily Labour Review" subtitle={`${project.street} · ${fmtDate}`} onBack={onBack} />
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px", maxWidth: 620, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          {tile(workers.length, "Workers", "#22c55e")}
+          {tile(`${totalHours}h`, "Total hours", "#e07b39")}
+          {tile(openShifts.length, "Open shifts", openShifts.length ? "#ef4444" : "#555")}
+        </div>
+        {openShifts.length > 0 && <div style={{ background: "#2a0c0c", border: "1px solid #ef444444", borderRadius: 8, padding: "9px 12px", fontSize: 13, color: "#f0a0a0", marginBottom: 10 }}>⚠ {openShifts.length} open / missing sign-out(s) — amend the time below, or wait for sign-out.</div>}
+        {multi.length > 0 && <div style={{ fontSize: 12, color: "#f59e0b", marginBottom: 10 }}>↺ Multiple periods today: {multi.join(", ")}</div>}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, color: "#888" }}>Daily log <span style={{ fontSize: 11, color: "#555" }}>(supervisor's — does not block approval)</span></span>
+          <span style={{ fontSize: 12, fontFamily: "Barlow Condensed, sans-serif", color: log === undefined ? "#555" : log ? "#22c55e" : "#f59e0b" }}>{log === undefined ? "…" : log ? "SUBMITTED" : "NOT SUBMITTED"}</span>
+        </div>
+        {(vlabour.length > 0 || visitors.length > 0) && (
+          <div style={{ display: "flex", justifyContent: "space-between", background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#888" }}>
+            <span>Variation labour: <b style={{ color: "#ccc" }}>{vlabour.length}</b> entr{vlabour.length === 1 ? "y" : "ies"}{vlHours ? ` · ${vlHours}h` : ""}</span>
+            {visitors.length > 0 && <span>Visitors/subs: <b style={{ color: "#ccc" }}>{visitors.length}</b></span>}
+          </div>
+        )}
+
+        <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, color: "#555", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Shifts</div>
+        {roll === null ? [1, 2].map(i => <div key={i} style={{ height: 56, background: "#141414", borderRadius: 10, marginBottom: 8 }} />)
+          : workers.length === 0 ? <EmptyState icon="👷" title="No worker shifts" subtitle="Nobody clocked in for this project that day" />
+          : workers.map(r => (
+            <div key={r.id} style={{ background: "#141414", border: `1px solid ${!r.outIso ? "#ef444455" : "#1e1e1e"}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, color: "#ddd" }}>{r.name}</div>
+                  <div style={{ fontSize: 12, color: "#777" }}>{fmtClock(r.inIso)} → {r.outIso ? fmtClock(r.outIso) : <span style={{ color: "#ef4444" }}>not signed out</span>}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 16, color: r.outIso ? "#e07b39" : "#777" }}>{r.outIso ? `${r1(r.hours)}h` : "—"}</span>
+                  {!approved && <button onClick={() => startAmend(r)} style={{ padding: "6px 11px", borderRadius: 7, border: "1px solid #2a2a2a", background: "transparent", color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, cursor: "pointer" }}>Amend</button>}
+                </div>
+              </div>
+              {amendId === r.id && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1e1e1e" }}>
+                  <div style={{ fontSize: 11, color: "#777", marginBottom: 4, fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase" }}>Set sign-out time</div>
+                  <input type="datetime-local" value={amendOut} onChange={e => setAmendOut(e.target.value)} style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "8px 10px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", colorScheme: "dark", marginBottom: 8 }} />
+                  <input value={amendNote} onChange={e => setAmendNote(e.target.value)} placeholder="Reason (e.g. forgot to sign out)" style={{ width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 13, padding: "8px 10px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", marginBottom: 8 }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => saveAmend(r)} style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: "#0ea5e9", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>SAVE AMENDMENT</button>
+                    <button onClick={() => setAmendId(null)} style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>CANCEL</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+        <div style={{ marginTop: 16 }}>
+          {approved
+            ? <div style={{ background: "#06200e", border: "1px solid #22c55e44", borderRadius: 10, padding: "14px", textAlign: "center", color: "#9ae6b4", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16 }}>✓ Labour approved for {fmtDate}</div>
+            : <button onClick={approveDay} disabled={workers.length === 0} style={{ width: "100%", padding: "15px", borderRadius: 12, border: "none", background: workers.length ? "#22c55e" : "#1e1e1e", color: workers.length ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, letterSpacing: 0.5, cursor: workers.length ? "pointer" : "not-allowed" }}>APPROVE LABOUR · {totalHours}h</button>}
+          <div style={{ fontSize: 11, color: "#555", textAlign: "center", marginTop: 8 }}>Approval is reversible — amend a shift to correct it (audited).</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Builder shell ──────────────────────────────────────────────────────────────
 export default function BuilderApp({ user }) {
   const [tab, setTab] = useState("dashboard");
@@ -523,6 +632,7 @@ export default function BuilderApp({ user }) {
   const [focusId, setFocusId] = useState(null);   // entityId to deep-link on the destination screen
   const [focusKind, setFocusKind] = useState(null); // disambiguates the Commercial hub category
   const [showVisibility, setShowVisibility] = useState(false); // #11 builder approval review
+  const [labourReview, setLabourReview] = useState(null);      // #5 { project, date }
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [lastProjectId, setLastProjectId] = useState(() => { try { return localStorage.getItem(LAST_PROJECT_KEY); } catch { return null; } });
@@ -535,7 +645,13 @@ export default function BuilderApp({ user }) {
   const openProjectClean = (p) => { setInitialScreen(null); setFocusId(null); setFocusKind(null); open(p); };
   const openAction = (item) => {
     const t = item.target;
-    if (t.kind === "timesheet") { navigate("labour"); return; }
+    if (t.kind === "timesheet") {
+      // labour.approve_day entityId = "projectId:date" → open that day's review (#5)
+      const [pid, date] = String(t.entityId || "").split(":");
+      const proj = projects.find(p => p.id === pid);
+      if (proj && date) { setLabourReview({ project: proj, date }); return; }
+      navigate("labour"); return;
+    }
     if (t.kind === "visibility") { setShowVisibility(true); return; }
     const proj = projects.find(p => p.id === t.projectId);
     if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setFocusId(t.entityId || null); setFocusKind(t.kind); open(proj); }
@@ -564,6 +680,7 @@ export default function BuilderApp({ user }) {
   };
 
   if (showVisibility) return <VisibilityReview onBack={() => setShowVisibility(false)} />;
+  if (labourReview) return <LabourReviewScreen project={labourReview.project} date={labourReview.date} user={user} onBack={() => setLabourReview(null)} />;
 
   // Opening a project takes over the full screen with its Project Dashboard.
   // Give the builder the same project-centric header as the supervisor, incl. an
