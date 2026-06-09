@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ProjectHeader from "../shared/ProjectHeader";
 import BackHeader from "../shared/BackHeader";
 import AppTile from "../shared/AppTile";
@@ -6,6 +6,7 @@ import OfflineBar from "../shared/OfflineBar";
 import FileUploadButton from "../shared/FileUploadButton";
 import PhotosScreen from "../shared/PhotosScreen";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
+import { useFocusRow, FOCUS_HL } from "../shared/useFocusRow";
 import letterheadUrl from "../../assets/letterhead.png";
 import { EmptyState, Skeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
@@ -248,13 +249,14 @@ const REQ_STATUS = {
   approved:  { label: "Approved",   color: "#22c55e", bg: "#06200e" },
   rejected:  { label: "Rejected",   color: "#ef4444", bg: "#2a0c0c" },
 };
-function MyRequestsScreen({ user, onBack }) {
+function MyRequestsScreen({ user, onBack, focusId }) {
   const [reqs, setReqs] = useState(null);
   useEffect(() => {
     getMySubbieRequests(user.id).then(({ data }) => setReqs(data));
     // Viewing the outcomes clears the "outcome unviewed" action item.
     markSubbieRequestsViewed(user.id);
   }, [user.id]);
+  const { rowRef, highlightId } = useFocusRow(focusId, reqs !== null);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
@@ -266,7 +268,7 @@ function MyRequestsScreen({ user, onBack }) {
             // Subbies only ever see Submitted / Approved / Rejected (converted shown as In Review).
             const st = REQ_STATUS[r.status] || REQ_STATUS.submitted;
             return (
-              <div key={r.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px", marginBottom: 8 }}>
+              <div key={r.id} ref={rowRef(r.id)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px", marginBottom: 8, ...(highlightId === r.id ? FOCUS_HL : null) }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{r.project?.job_number || ""}{r.trade ? ` · ${r.trade}` : ""}</div>
@@ -383,10 +385,18 @@ function PoDetailScreen({ po: initialPo, user, onBack }) {
 }
 
 // ── My purchase orders ──────────────────────────────────────────────────────────
-function MyPosScreen({ user, onBack }) {
+function MyPosScreen({ user, onBack, focusId }) {
   const [pos, setPos] = useState(null);
   const [open, setOpen] = useState(null);
   useEffect(() => { getMyPurchaseOrders(user.id).then(({ data }) => setPos(data)); }, [user.id]);
+
+  // Deep-link: open the targeted PO's detail once loaded (one-shot per focusId).
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || !pos || focusedRef.current === focusId) return;
+    const po = pos.find(x => x.id === focusId);
+    if (po) { setOpen(po); focusedRef.current = focusId; }
+  }, [focusId, pos]);
 
   if (open) return <PoDetailScreen po={open} user={user} onBack={() => setOpen(null)} />;
 
@@ -420,6 +430,7 @@ export default function SubcontractorApp({ user }) {
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState(null);
   const [screen, setScreen] = useState(null);
+  const [focusId, setFocusId] = useState(null); // deep-linked PO/request from the action card
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -435,6 +446,7 @@ export default function SubcontractorApp({ user }) {
   // Attention Centre — subby items are scoped to their own POs/requests (no financials).
   const { items: actionItems } = useActionItems("subcontractor", user.id);
   const onOpenAction = (item) => {
+    setFocusId(item.target.entityId || null);
     if (item.target.kind === "subbiePo") setScreen("myPos");
     else if (item.target.kind === "subbieRequest") setScreen("myRequests");
   };
@@ -461,13 +473,13 @@ export default function SubcontractorApp({ user }) {
   );
 
   if (screen) {
-    const props = { project, user, onBack: () => setScreen(null) };
+    const props = { project, user, onBack: () => { setScreen(null); setFocusId(null); } };
     switch (screen) {
       case "signIn":     return <SignInScreen {...props} />;
       case "documents":  return <DocsScreen {...props} />;
       case "varRequest": return <RequestVariationScreen {...props} />;
-      case "myRequests": return <MyRequestsScreen {...props} />;
-      case "myPos":      return <MyPosScreen {...props} />;
+      case "myRequests": return <MyRequestsScreen {...props} focusId={focusId} />;
+      case "myPos":      return <MyPosScreen {...props} focusId={focusId} />;
       case "photos":     return <PhotosScreen {...props} />;
       default: break;
     }
@@ -498,7 +510,7 @@ export default function SubcontractorApp({ user }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 24px" }}>
         {actionItems?.length > 0 && <ActionQueue items={actionItems} title="Action required" onOpen={onOpenAction} />}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-          {TILE_GRID.map(tile => <AppTile key={tile.key} {...tile} onClick={() => setScreen(tile.key)} />)}
+          {TILE_GRID.map(tile => <AppTile key={tile.key} {...tile} onClick={() => { setFocusId(null); setScreen(tile.key); }} />)}
         </div>
       </div>
     </div>

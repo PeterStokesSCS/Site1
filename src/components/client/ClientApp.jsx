@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import AppTile from "../shared/AppTile";
 import BackHeader from "../shared/BackHeader";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
+import { useFocusRow, FOCUS_HL } from "../shared/useFocusRow";
 import { EmptyState, Skeleton, CardSkeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
 import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos, updateVariation } from "../../lib/db";
@@ -291,12 +292,22 @@ function SignOffModal({ variation, user, onClose, onDone }) {
 }
 
 // ── Variations screen ──────────────────────────────────────────────────────────
-function VariationsScreen({ project, user, onBack }) {
+function VariationsScreen({ project, user, onBack, focusId }) {
   const [vars, setVars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [signing, setSigning] = useState(null);
 
   useEffect(() => { getVariations(project.id).then(({ data }) => { setVars(data); setLoading(false); }); }, [project.id]);
+
+  // Deep-link from the "Requires your attention" queue: open the targeted variation —
+  // pop the sign-off modal if it's awaiting the client, else scroll-to + highlight it.
+  const { rowRef, highlightId } = useFocusRow(focusId, !loading);
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || loading || focusedRef.current === focusId) return;
+    const v = vars.find(x => x.id === focusId);
+    if (v) { focusedRef.current = focusId; if (v.status === "sent") setSigning(v); }
+  }, [focusId, loading, vars]);
 
   const onDone = (updated) => {
     setVars(prev => prev.map(v => v.id === updated.id ? { ...v, ...updated } : v));
@@ -313,7 +324,7 @@ function VariationsScreen({ project, user, onBack }) {
             : vars.map(v => {
               const awaiting = v.status === "sent";
               return (
-              <div key={v.id} style={{ background: "#141414", border: `1px solid ${awaiting ? "#0ea5e955" : "#1e1e1e"}`, borderRadius: 10, padding: "14px", marginBottom: 8 }}>
+              <div key={v.id} ref={rowRef(v.id)} style={{ background: "#141414", border: `1px solid ${awaiting ? "#0ea5e955" : "#1e1e1e"}`, borderRadius: 10, padding: "14px", marginBottom: 8, ...(highlightId === v.id ? FOCUS_HL : null) }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, color: "#555", fontFamily: "Barlow Condensed, sans-serif" }}>{v.ref || "—"}</div>
@@ -367,6 +378,7 @@ export default function ClientApp({ user }) {
   const [project, setProject] = useState(null);
   const [pendingVars, setPendingVars] = useState(0);
   const [screen, setScreen] = useState(null);
+  const [focusVarId, setFocusVarId] = useState(null); // deep-linked variation from the attention queue
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -389,7 +401,7 @@ export default function ClientApp({ user }) {
 
   // Attention Centre (client scope is just their own project, via RLS).
   const { items: actionItems } = useActionItems("client", user.id, !!project);
-  const onOpenAction = (item) => { if (item.target.kind === "clientVariation") setScreen("variations"); };
+  const onOpenAction = (item) => { if (item.target.kind === "clientVariation") { setFocusVarId(item.target.entityId || null); setScreen("variations"); } };
 
   if (loading) return (
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c", maxWidth: 430, margin: "0 auto" }}>
@@ -413,11 +425,11 @@ export default function ClientApp({ user }) {
   );
 
   if (screen) {
-    const props = { project, onBack: () => setScreen(null) };
+    const props = { project, onBack: () => { setScreen(null); setFocusVarId(null); } };
     switch (screen) {
       case "updates":    return <ProgressScreen {...props} />;
       case "documents":  return <DocumentsScreen {...props} />;
-      case "variations": return <VariationsScreen {...props} user={user} />;
+      case "variations": return <VariationsScreen {...props} user={user} focusId={focusVarId} />;
       case "schedule":   return <SoonScreen title="Schedule" icon="📅" {...props} />;
       case "photos":     return <ClientPhotosScreen {...props} />;
       case "invoices":   return <SoonScreen title="Invoices" icon="💳" {...props} />;
@@ -474,7 +486,7 @@ export default function ClientApp({ user }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 24px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
           {TILE_GRID.map(tile => (
-            <AppTile key={tile.key} {...tile} onClick={() => setScreen(tile.key)} />
+            <AppTile key={tile.key} {...tile} onClick={() => { setFocusVarId(null); setScreen(tile.key); }} />
           ))}
         </div>
       </div>
