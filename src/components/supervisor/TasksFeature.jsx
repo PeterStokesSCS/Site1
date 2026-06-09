@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BackHeader from "../shared/BackHeader";
 import { Skeleton, EmptyState } from "../shared/LoadingScreen";
 import { getTasksByProject, updateTaskStatus, createTask, getProfiles } from "../../lib/db";
@@ -327,11 +327,12 @@ function LandingTile({ title, subtitle, badge, badgeColor, badge2, badge2Color, 
   );
 }
 
-export default function TasksFeature({ project, user, onBack }) {
+export default function TasksFeature({ project, user, onBack, focusId }) {
   const [tasks, setTasks] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("landing"); // landing | mine | project | others
+  const [focusTask, setFocusTask] = useState(null); // deep-linked task (opens detail directly)
 
   useEffect(() => {
     Promise.all([getTasksByProject(project.id), getProfiles()]).then(([t, p]) => {
@@ -341,6 +342,14 @@ export default function TasksFeature({ project, user, onBack }) {
     });
   }, [project.id]);
 
+  // Deep-link: open the targeted task's detail once it's loaded (one-shot per focusId).
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || focusedRef.current === focusId) return;
+    const t = tasks.find(x => x.id === focusId);
+    if (t) { setFocusTask(t); focusedRef.current = focusId; }
+  }, [focusId, tasks]);
+
   const myTasks      = tasks.filter(t => t.assignee_id === user.id);
   const projectTasks = tasks;
   const otherTasks   = tasks.filter(t => t.assignee_id && t.assignee_id !== user.id);
@@ -348,6 +357,7 @@ export default function TasksFeature({ project, user, onBack }) {
   const overdueCount = (list) => list.filter(isOverdue).length;
   const todayCount   = (list) => list.filter(isDueToday).length;
 
+  if (focusTask)          return <TaskDetail task={focusTask} user={user} onBack={() => setFocusTask(null)} />;
   if (view === "mine")    return <TaskList title="My Tasks"      tasks={myTasks}      loading={loading} user={user} onBack={() => setView("landing")} workers={workers} projectId={project.id} />;
   if (view === "project") return <TaskList title="Project Tasks" tasks={projectTasks} loading={loading} user={user} onBack={() => setView("landing")} workers={workers} projectId={project.id} />;
   if (view === "others")  return <OthersTasksList tasks={otherTasks} workers={workers} user={user} onBack={() => setView("landing")} />;

@@ -102,8 +102,8 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
   if (screen) {
     const props = { project, user, onBack: () => { setScreen(null); setFocus(null); } };
     switch (screen) {
-      case "tasks":         return <TasksFeature {...props} />;
-      case "issues":        return <IssuesFeature {...props} />;
+      case "tasks":         return <TasksFeature {...props} focusId={focus} />;
+      case "issues":        return <IssuesFeature {...props} focusId={focus} />;
       case "attendance":    return <OnSiteFeature {...props} />;
       case "safety":        return <SafetyScreen {...props} />;
       case "dailyLog":      return <DailyLogScreen {...props} />;

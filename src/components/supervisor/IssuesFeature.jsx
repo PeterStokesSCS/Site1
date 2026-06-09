@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BackHeader from "../shared/BackHeader";
 import { EmptyState } from "../shared/LoadingScreen";
 import { getIssues, createIssue, createHazard, getProfiles } from "../../lib/db";
@@ -335,11 +335,12 @@ function LandingTile({ title, subtitle, icon, accent, bg, badge, badgeColor, bad
 }
 
 // ── Issues Feature ─────────────────────────────────────────────────────────────
-export default function IssuesFeature({ project, user, onBack }) {
+export default function IssuesFeature({ project, user, onBack, focusId }) {
   const [issues, setIssues] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("landing");
+  const [focusIssue, setFocusIssue] = useState(null); // deep-linked issue (opens detail directly)
 
   useEffect(() => {
     Promise.all([getIssues(project.id), getProfiles()]).then(([i, p]) => {
@@ -348,6 +349,14 @@ export default function IssuesFeature({ project, user, onBack }) {
       setLoading(false);
     });
   }, [project.id]);
+
+  // Deep-link: open the targeted issue's detail once loaded (one-shot per focusId).
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || focusedRef.current === focusId) return;
+    const i = issues.find(x => x.id === focusId);
+    if (i) { setFocusIssue(i); focusedRef.current = focusId; }
+  }, [focusId, issues]);
 
   const reload = () => getIssues(project.id).then(({ data }) => setIssues(data));
 
@@ -358,6 +367,7 @@ export default function IssuesFeature({ project, user, onBack }) {
   const criticalCount = (list) => list.filter(i => (i.priority === "critical" || i.priority === "high") && i.status !== "resolved").length;
   const medCount      = (list) => list.filter(i => i.priority === "medium" && i.status !== "resolved").length;
 
+  if (focusIssue)         return <IssueDetail issue={focusIssue} user={user} onBack={() => setFocusIssue(null)} />;
   if (view === "mine")    return <IssueList title="My Issues"      issues={myIssues}      user={user} onBack={() => setView("landing")} projectId={project.id} onIssueCreated={reload} />;
   if (view === "project") return <IssueList title="Project Issues" issues={projectIssues} user={user} onBack={() => setView("landing")} projectId={project.id} onIssueCreated={reload} />;
   if (view === "others")  return <OthersIssuesList issues={othersIssues} workers={workers} user={user} onBack={() => setView("landing")} />;
