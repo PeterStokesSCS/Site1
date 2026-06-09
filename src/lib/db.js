@@ -42,7 +42,7 @@ export async function updateProject(id, payload) {
 export async function getTasksByProject(projectId) {
   const { data, error } = await supabase
     .from("tasks")
-    .select("*, assignee:profiles(id, full_name)")
+    .select("*, assignee:profiles!tasks_assignee_id_fkey(id, full_name)")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   return { data: data || [], error };
