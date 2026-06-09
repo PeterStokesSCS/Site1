@@ -39,7 +39,8 @@ Severity: 🔴 Critical (blocks rollout) · 🟠 High · 🟡 Medium.
 
 | # | Risk | Evidence | Severity | Fix |
 |---|---|---|---|---|
-| R1 | **Cross-org data leakage at DB layer.** ~28 tables still use global-role RLS (`role in ('builder','office')`), no `org_id` gate. Org B's builder can read/write Org A's rows. | `supabase_rls_stage4.sql` (22 global gates), `stage4b.sql` (37). Only `tasks` is tenant-scoped. | 🔴 | **Migration ready:** `supabase_migration_tenant_phase03_rollout.sql` adds a RESTRICTIVE org-gate to all 29 org_id tables (28 read+write, notification_log read-only). Apply, then re-run `sandbox:test`. |
+| R1 | **Cross-org data leakage at DB layer.** ~28 tables used global-role RLS with no `org_id` gate. | `supabase_rls_stage4/4b`. | ✅ **CLOSED (verified 2026-06-10)** | `supabase_migration_tenant_phase03_rollout.sql` applied; all 17 isolation tests pass as real seeded users. |
+| R6b | **Systemic wide-open `using(true)` policies.** 33 dev-era "allow all" permissive policies survive under the role-aware ones; since permissive policies OR together, they nullify role logic within an org. Several tables (`qa_items`,`defects`,`blockers`,`commercial_items`,`task_comments`…) have `using(true)` as their ONLY policy, so they can't simply be dropped — each needs a proper role-aware policy first. | `supabase_schema.sql` (20), `supabase_schema_ensure.sql` (13). | 🔴 | **Stage 3 role-RLS, per table.** Started with `purchase_orders`/`variations` (Stage 3a). The rest need careful per-table policies (must not lock the table or break client/subbie flows). |
 | R2 | **Public file bucket — total file leakage.** Any photo/attachment URL is world-readable, no auth, no org check. Paths are semi-guessable (`<ts>-<6 rand>`). | `src/lib/storage.js:12` `getPublicUrl`; `BUCKET="attachments"` public. | 🔴→🟠 | **App-side DONE:** uploads now write org-prefixed paths, DB stores the path, rendering uses signed URLs (`SignedImage`/`SignedLink`), legacy URLs pass through. **Remaining to fully close:** (1) migrate existing objects under an `<org_id>/` prefix; (2) apply `supabase_migration_storage_private.sql` to flip the bucket private. |
 | R3 | **No audit log.** No record of logins, permission-denials, CRUD, role/visibility/variation/PO events. Cannot detect or prove unauthorised access. | Only `notification_log` exists. | 🔴→🟠 | **App-side DONE:** `logAudit()` wired in `db.js` (create task/hazard/log/variation, variation_sent/signed, visibility_approved, po_issued, role_changed, assignment_changed, deletes) + login/login_failed/logout. **Remaining:** apply `supabase_migration_audit_log.sql` to activate; add `permission_denied` + `user_disabled` capture. |
 | R4 | **No app-side org context.** Frontend never resolves the user's org; reads aren't org-scoped client-side — they lean entirely on (currently global) RLS. | `App.jsx:39` only `getSession()`. | 🟠 | Phase 4: resolve `org_members` on login, scope reads, scope Action Queue. |
@@ -124,6 +125,12 @@ reads under rapid fire; will be deterministic once the restrictive gate is appli
 > Note: `tasks` leaks here because the Phase 3 PILOT was rolled back during the earlier
 > "disappear" debugging and never re-applied. The full rollout migration supersedes it.
 
+#### 5.1a AFTER Phase 3 rollout (2026-06-10) — ✅ ISOLATION CLOSED
+Applied `supabase_migration_tenant_phase03_rollout.sql`, re-ran: **all 17 isolation tests
+PASS** (list, direct-id, update, delete, search, notifications — every table). Cross-org
+leakage (R1) is closed and verified as real seeded users with RLS enforced. Suite went from
+18 fail → **3 fail / 21 pass / 3 skip**; the 3 remaining are RBAC (§5.2), not isolation.
+
 ### 5.2 Role-based access — BASELINE (2026-06-10)
 **4 fail / 3 pass.** Within a single org, the existing project-membership/global-role RLS
 over-exposes commercial data:
@@ -134,6 +141,12 @@ over-exposes commercial data:
 
 These are NOT fixed by the Phase 3 org gate (which only adds tenant isolation). They require
 role/column-level RLS — see R5/R6 — and are now empirically confirmed, not just suspected.
+
+After Phase 3, the subcontractor test also passes (org gate removed the cross-org POs; the
+subbie now sees none of org A's POs as they aren't a project member — over-restrictive but
+not a leak). The 3 still-failing RBAC cases → **Stage 3 role RLS** (next):
+`purchase_orders` and `variations` reads must be gated to builder/office + the project's
+supervisor + (for POs) the issued subcontractor — excluding field staff and clients.
 
 ### 5.3 Load — `npm run load:smoke|100|250|500|1000`
 k6 against Supabase REST/Auth as seeded sandbox users (~85% read / 15% write). Thresholds:
