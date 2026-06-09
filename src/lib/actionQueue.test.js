@@ -3,6 +3,7 @@ import {
   hoursSince, isSignoffOverdue, isShiftTooLong, isTaskOverdue, dueAtIso,
   sortItems, melbourneTodayStr, melbourneDayStartUtc, melbourneDayRangeUtc, CONFIG,
   melbourneCutoffUtc, openShiftHoursToCutoff, isShiftPastCutoff, groupPendingLabour,
+  variationLabourCost,
 } from "./actionQueue";
 
 const HOURS = (h) => new Date(Date.now() - h * 3600000).toISOString();
@@ -101,6 +102,15 @@ describe("Tier 2 #7 — end-of-day labour (pure)", () => {
     expect(g.length).toBe(2);
     expect(g.find(x => x.projectId === "p1").count).toBe(2);
     expect(g.find(x => x.projectId === "p1").hours).toBe(14.5);
+  });
+  it("variationLabourCost = sum of hours x each worker's rate", () => {
+    const entries = [
+      { hours: 2, worker_ids: ["a", "b"] },  // 2*(50+60) = 220
+      { hours: 3, worker_ids: ["a"] },       // 3*50      = 150
+      { hours: 1, worker_ids: ["c"] },       // 1*0 (no rate) = 0
+    ];
+    expect(variationLabourCost(entries, { a: 50, b: 60 })).toBe(370);
+    expect(variationLabourCost([], {})).toBe(0);
   });
 });
 

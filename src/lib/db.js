@@ -717,6 +717,76 @@ export async function upsertLabourRate(profileId, hourlyRate) {
   return { data, error };
 }
 
+// ── Tier 2 #7: end-of-day labour approval + amend-after-approve (audited) ───────
+// Approve all completed (clocked-out) pending shifts for a project on a given day.
+// Resolves the derived "Approve today's labour" action item.
+export async function approveProjectDayLabour(projectId, workDate, approverId) {
+  const { data, error } = await supabase
+    .from("timesheets")
+    .update({ status: "approved", approved_by: approverId })
+    .eq("project_id", projectId).eq("work_date", workDate).eq("status", "pending")
+    .not("clock_out", "is", null)
+    .select("id");
+  return { count: (data || []).length, error };
+}
+
+// Reversible, audited correction (e.g. "forgot to sign out"). Appends to amendments[]
+// and applies the patch (hours_worked / clock_out / status). Approval is never a
+// one-way lock.
+export async function amendTimesheet(id, patch, byUserId, note) {
+  const { data: row } = await supabase.from("timesheets").select("amendments, hours_worked, clock_out, status").eq("id", id).single();
+  const entry = {
+    at: new Date().toISOString(), by: byUserId, note: note || null,
+    from: { hours_worked: row?.hours_worked ?? null, clock_out: row?.clock_out ?? null, status: row?.status ?? null },
+    to: patch,
+  };
+  const { error } = await supabase.from("timesheets").update({ ...patch, amendments: [...(row?.amendments || []), entry] }).eq("id", id);
+  return { error };
+}
+
+// ── Tier 2 #9: variation labour capture (in-house crew hours on variation work) ──
+export async function createVariationLabour(payload) {
+  const { data, error } = await supabase.from("variation_labour").insert(payload).select().single();
+  return { data, error };
+}
+export async function getVariationLabour(projectId, { variationId } = {}) {
+  let q = supabase.from("variation_labour").select("*").eq("project_id", projectId).order("work_date", { ascending: false });
+  if (variationId) q = q.eq("variation_id", variationId);
+  const { data, error } = await q;
+  return { data: data || [], error };
+}
+// Unlinked entries = evidence captured before a variation existed; surfaced later to match.
+export async function getUnlinkedVariationLabour(projectId) {
+  const { data, error } = await supabase.from("variation_labour").select("*").eq("project_id", projectId).is("variation_id", null).order("work_date", { ascending: false });
+  return { data: data || [], error };
+}
+export async function linkVariationLabour(id, variationId) {
+  const { error } = await supabase.from("variation_labour").update({ variation_id: variationId }).eq("id", id);
+  return { error };
+}
+
+// ── Tier 2 #8: Daily Record composite (read aggregation; NOT an "approve day" gate) ──
+export async function getDailyRecord(projectId, dateStr) {
+  const [attendance, logs, vlabour, photos, tasks] = await Promise.all([
+    getAttendanceForDay(projectId, dateStr),
+    getDailyLogs(projectId),
+    getVariationLabour(projectId),
+    getPhotos(projectId),
+    getTasksByProject(projectId),
+  ]);
+  const onDay = (d) => String(d || "").slice(0, 10) === dateStr;
+  const log = (logs.data || []).find(l => onDay(l.log_date)) || null;
+  return {
+    date: dateStr,
+    attendance: attendance.data || [],                                           // workers + visitors w/ hours
+    dailyLog: log,                                                               // supervisor's artifact (status shown alongside, not gated)
+    variationLabour: (vlabour.data || []).filter(v => onDay(v.work_date)),
+    photos: (photos.data || []).filter(p => onDay(p.taken_at || p.created_at)),
+    tasks: (tasks.data || []).filter(t => onDay(t.due_date)),
+    weather: log?.weather || null,
+  };
+}
+
 // ── Profile credentials (licences / certs / qualifications) ─────────────────────
 export async function getProfileCredentials(profileId) {
   const { data, error } = await supabase

@@ -128,6 +128,17 @@ export function groupPendingLabour(timesheets) {
   return Object.values(groups).map(g => ({ ...g, hours: Math.round(g.hours * 10) / 10 }));
 }
 
+// Tier 2 #9: in-house labour cost for a variation. Each entry's `hours` apply to each
+// named worker at their rate. rateById = { workerId: hourlyRate }. Pure (testable).
+export function variationLabourCost(entries, rateById = {}) {
+  let cost = 0;
+  for (const e of entries || []) {
+    const hours = Number(e.hours) || 0;
+    for (const w of e.worker_ids || []) cost += hours * (Number(rateById[w]) || 0);
+  }
+  return Math.round(cost * 100) / 100;
+}
+
 // ── ActionItem builder ─────────────────────────────────────────────────────────
 const PRIO = { high: 0, medium: 1, low: 2 };
 function mk({ type, priority, role, project, projectId, since, dueAt, description, target, userId }) {
