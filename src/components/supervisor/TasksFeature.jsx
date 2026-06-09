@@ -7,6 +7,7 @@ import { post } from "../../lib/webhook";
 import PhotoAttach from "../shared/PhotoAttach";
 
 const TODAY = new Date().toISOString().slice(0, 10);
+const addDayStr = (ds, n) => { const d = new Date(`${ds}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 const PRIORITY = {
   critical: { color: "#ef4444", bg: "#2a0c0c", label: "CRITICAL" },
@@ -236,6 +237,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [justCreated, setJustCreated] = useState(null); // success screen after creating (#7)
+  const [datePreset, setDatePreset] = useState("today"); // #14 due-date quick presets
 
   useEffect(() => { setAllTasks(tasks); }, [tasks]);
 
@@ -274,6 +276,7 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
     setAllTasks(prev => [created, ...prev]);
     setShowForm(false);
     setForm({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
+    setDatePreset("today");
     // Confirmation screen so the supervisor sees where the task went (#7) — View Task
     // then lets them add photos/attachments (preserves H11).
     setJustCreated(created);
@@ -305,15 +308,26 @@ function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, pro
                 {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
               </select>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-              <div>
-                <div style={lbl}>Due Date</div>
-                <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={inp} />
+            {/* #14: date + time in one flow with quick presets */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={lbl}>Due</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { k: "today",    l: "Today",      date: TODAY,            time: "" },
+                  { k: "tomorrow", l: "Tomorrow",   date: addDayStr(TODAY, 1), time: "" },
+                  { k: "eod",      l: "End of Day", date: TODAY,            time: "17:00" },
+                  { k: "custom",   l: "Custom" },
+                ].map(p => (
+                  <button key={p.k} onClick={() => { setDatePreset(p.k); if (p.k !== "custom") setForm(f => ({ ...f, due_date: p.date, due_time: p.time })); }}
+                    style={{ flex: "1 1 auto", padding: "8px 6px", borderRadius: 7, border: `1px solid ${datePreset === p.k ? "#e07b39" : "#2a2a2a"}`, background: datePreset === p.k ? "#2a1800" : "transparent", color: datePreset === p.k ? "#e07b39" : "#777", fontFamily: "Barlow Condensed, sans-serif", fontSize: 12, cursor: "pointer" }}>{p.l}</button>
+                ))}
               </div>
-              <div>
-                <div style={lbl}>Due Time</div>
-                <input type="time" value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} style={inp} />
-              </div>
+              {datePreset === "custom" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+                  <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} style={inp} />
+                  <input type="time" value={form.due_time} onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))} style={inp} />
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
               {Object.entries(PRIORITY).map(([k, v]) => (
