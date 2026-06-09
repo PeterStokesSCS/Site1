@@ -99,7 +99,7 @@ fastest, most direct proof (or disproof) of isolation. They are the rollout gate
 | 10 | Audit-log tests | `audit.test.mjs` + `logAudit` wired in `db.js`/auth | **Built** (apply `audit_log` migration to activate) |
 | 6 | File/photo access tests | needs storage hardening (migration provided) | Infra ready |
 | 2 | Playwright E2E role journeys | `tests/e2e/` | Phase B |
-| 11 | k6 load (100/250/500/1000) | `tests/load/` | Phase B |
+| 11 | k6 load (100/250/500/1000) | `tests/load/site1-load.js` + `load:*` scripts | **Built** (run with k6 + seeded sandbox) |
 | 3 | API permission tests (E2E via UI) | overlaps isolation + e2e | Partly built |
 | 12 | OWASP ZAP baseline | `tests/security/` | Phase B (documented) |
 | 13 | CI/test commands | `package.json` scripts | **Built** |
@@ -117,8 +117,10 @@ _(pending first run)_
 ### 5.2 Role-based access — same command
 _(pending first run)_
 
-### 5.3 Load — `npm run load:*`
-_(Phase B)_
+### 5.3 Load — `npm run load:smoke|100|250|500|1000`
+k6 against Supabase REST/Auth as seeded sandbox users (~85% read / 15% write). Thresholds:
+<5% errors, p95 < 1.5s (reads < 1.2s, writes < 2s). Each run writes `tests/load/<profile>-summary.json`.
+Paste the requests / failed% / p95 / max per profile here after running. _(pending first run)_
 
 ### 5.4 Highest-risk issues (carry-over from §2 until retested)
 1. **R2 public bucket** — fix before *any* real photo is uploaded by a real tenant.
