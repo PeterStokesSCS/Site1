@@ -32,6 +32,39 @@ export function melbourneHour(d = new Date()) {
   return Number(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false }).format(d));
 }
 
+// Offset (minutes) of Australia/Melbourne from UTC at a given instant — handles
+// AEST(+10) / AEDT(+11) automatically (no hardcoded offset).
+function melbourneOffsetMinutes(date) {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(date).reduce((a, x) => (a[x.type] = x.value, a), {});
+  const h = p.hour === "24" ? 0 : Number(p.hour); // some engines emit "24" at midnight
+  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, h, +p.minute, +p.second);
+  return Math.round((asUtc - date.getTime()) / 60000);
+}
+
+// UTC instant of Melbourne local midnight that starts calendar day `dateStr` (YYYY-MM-DD).
+// Two-pass: the offset is first sampled at UTC-midnight, then re-sampled at the candidate
+// instant and corrected — this resolves the two DST-transition days (23h / 25h) where the
+// offset at the target local midnight differs from the offset at the initial guess.
+export function melbourneDayStartUtc(dateStr) {
+  const naiveMs = new Date(`${dateStr}T00:00:00Z`).getTime();
+  const off1 = melbourneOffsetMinutes(new Date(naiveMs));
+  let candidate = naiveMs - off1 * 60000;
+  const off2 = melbourneOffsetMinutes(new Date(candidate));
+  if (off2 !== off1) candidate = naiveMs - off2 * 60000;
+  return new Date(candidate);
+}
+
+// [startUtc, endUtc) Date instants bounding the Melbourne calendar day `dateStr`.
+// DST-exact: the end is the *next* Melbourne midnight, so 23h/25h transition days
+// are handled correctly. Use for timestamptz range filters keyed to a local day.
+export function melbourneDayRangeUtc(dateStr) {
+  const next = new Date(new Date(`${dateStr}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
+  return { startUtc: melbourneDayStartUtc(dateStr), endUtc: melbourneDayStartUtc(next) };
+}
+
 // ── Pure predicate logic (unit-testable, no DB) ────────────────────────────────
 export function hoursSince(iso, now = Date.now()) {
   if (!iso) return null;

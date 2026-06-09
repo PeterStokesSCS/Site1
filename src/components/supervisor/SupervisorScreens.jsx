@@ -7,15 +7,16 @@ import {
   getMessages, sendMessage, addPhoto,
 } from "../../lib/db";
 import { post } from "../../lib/webhook";
+import { melbourneTodayStr } from "../../lib/actionQueue";
 import { fetchWeather } from "../../lib/weather";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
 import PhotoAttach from "../shared/PhotoAttach";
 import PhotoCaptureButton from "../shared/PhotoCaptureButton";
 import PhotoQueueBanner from "../shared/PhotoQueueBanner";
 
-// Local YYYY-MM-DD (not UTC) so "today" matches the supervisor's actual day
+// Melbourne YYYY-MM-DD so "today" / log_date always match the site's actual calendar day
 function localDateStr(d = new Date()) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return melbourneTodayStr(d);
 }
 function isoDaysAgo(n) {
   const d = new Date(); d.setDate(d.getDate() - n); return localDateStr(d);
@@ -55,7 +56,7 @@ function LogAttendance({ projectId, dateStr }) {
   return <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #1e1e1e" }}><AttendanceRoll entries={entries} now={Date.now()} /></div>;
 }
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = melbourneTodayStr();
 
 function Screen({ title, subtitle, onBack, children, action }) {
   return (

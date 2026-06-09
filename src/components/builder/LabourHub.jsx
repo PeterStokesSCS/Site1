@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { EmptyState } from "../shared/LoadingScreen";
 import { getAllProjectMembers, getProfiles, getLabourRates, upsertLabourRate, updateProject } from "../../lib/db";
+import { melbourneTodayStr } from "../../lib/actionQueue";
 
 // §M1 Labour — workforce / reporting hub. Hours-only (no pay rates / no $),
 // all derived from existing timesheets + project_members. Four sections:
@@ -18,12 +19,15 @@ const shiftHours = (t) => {
 const round1 = (n) => Math.round(n * 10) / 10;
 const fmtDay = (d) => d ? new Date(d).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) : "—";
 const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true }) : "--";
-const dayKey = (t) => (t.work_date || t.clock_in || "").slice(0, 10);
+// Prefer the stored work_date (already a Melbourne calendar day); for legacy rows
+// without it, derive the Melbourne day from the clock_in instant (not the UTC date).
+const dayKey = (t) => t.work_date ? String(t.work_date).slice(0, 10) : (t.clock_in ? melbourneTodayStr(new Date(t.clock_in)) : "");
 
+// Monday (Melbourne) of the week containing `now`, as a YYYY-MM-DD Melbourne date.
 function weekStartStr(now = new Date()) {
-  const d = new Date(now);
-  const day = (d.getDay() + 6) % 7; // Monday = 0
-  d.setDate(d.getDate() - day);
+  const d = new Date(`${melbourneTodayStr(now)}T00:00:00Z`); // Melbourne calendar day → pure UTC date math
+  const day = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - day);
   return d.toISOString().slice(0, 10);
 }
 

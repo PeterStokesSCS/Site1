@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { melbourneTodayStr, melbourneDayRangeUtc } from "./actionQueue";
 
 // ── Projects ───────────────────────────────────────────────────────────────────
 export async function getProjects() {
@@ -48,7 +49,7 @@ export async function getTasksByProject(projectId) {
 }
 
 export async function getMyTasksToday(workerId) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneTodayStr();
   const { data, error } = await supabase
     .from("tasks")
     .select("*, projects(street, job_number)")
@@ -127,7 +128,7 @@ export async function resolveHazard(id) {
 
 // ── Timesheets / Clock ─────────────────────────────────────────────────────────
 export async function clockIn(workerId, projectId) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = melbourneTodayStr();   // Melbourne calendar day, not UTC
   const { data, error } = await supabase
     .from("timesheets")
     .insert({
@@ -204,15 +205,14 @@ export async function approveTimesheet(id, approverId) {
   return { error };
 }
 
-// Everyone who was on site on a given LOCAL day (dateStr = YYYY-MM-DD) for a project —
+// Everyone who was on site on a given MELBOURNE day (dateStr = YYYY-MM-DD) for a project —
 // workers (timesheets) + visitors/subs (site_visits), with durations. Captures anyone
 // whose shift started that day, whether they've left or are still on site.
 export async function getAttendanceForDay(projectId, dateStr) {
-  const start = new Date(`${dateStr}T00:00:00`);
-  const end = new Date(start.getTime() + 24 * 3600 * 1000);
+  const { startUtc, endUtc } = melbourneDayRangeUtc(dateStr);
   const [ts, sv, pr] = await Promise.all([
-    supabase.from("timesheets").select("*").eq("project_id", projectId).gte("clock_in", start.toISOString()).lt("clock_in", end.toISOString()),
-    supabase.from("site_visits").select("*").eq("project_id", projectId).gte("sign_in", start.toISOString()).lt("sign_in", end.toISOString()),
+    supabase.from("timesheets").select("*").eq("project_id", projectId).gte("clock_in", startUtc.toISOString()).lt("clock_in", endUtc.toISOString()),
+    supabase.from("site_visits").select("*").eq("project_id", projectId).gte("sign_in", startUtc.toISOString()).lt("sign_in", endUtc.toISOString()),
     supabase.from("profiles").select("id, full_name, role"),
   ]);
   const pmap = Object.fromEntries((pr.data || []).map(p => [p.id, p]));
