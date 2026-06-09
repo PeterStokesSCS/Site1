@@ -449,6 +449,32 @@ export async function setPhotoClientVisible(id, value) {
   return { error };
 }
 
+// ── #11 Client-visibility approval: supervisor/worker request → builder approves ──
+// Only a builder/office approval flips client_visible true (RLS still allows writes,
+// so this is the workflow gate, enforced in the UI + the builder action queue).
+export async function requestClientVisibility(table, id, userId) {
+  const { error } = await supabase.from(table).update({ visibility_status: "requested", visibility_requested_by: userId, visibility_requested_at: new Date().toISOString() }).eq("id", id);
+  return { error };
+}
+export async function approveClientVisibility(table, id) {
+  const { error } = await supabase.from(table).update({ visibility_status: "approved", client_visible: true }).eq("id", id);
+  return { error };
+}
+export async function rejectClientVisibility(table, id) {
+  const { error } = await supabase.from(table).update({ visibility_status: "rejected", client_visible: false }).eq("id", id);
+  return { error };
+}
+// Pending requests across projects (builder review list). Returns a unified shape.
+export async function getPendingVisibilityRequests() {
+  const [ph, df] = await Promise.all([
+    supabase.from("project_photos").select("id, project_id, url, caption, category, linked_record_type, visibility_requested_at, project:projects(street, job_number)").eq("visibility_status", "requested"),
+    supabase.from("defects").select("id, project_id, title, location_area, visibility_requested_at, project:projects(street, job_number)").eq("visibility_status", "requested"),
+  ]);
+  const photos = (ph.data || []).map(p => ({ kind: "photo", table: "project_photos", id: p.id, project_id: p.project_id, project: p.project, requested_at: p.visibility_requested_at, title: p.caption || `Photo (${p.category || p.linked_record_type || "general"})`, url: p.url }));
+  const defects = (df.data || []).map(d => ({ kind: "defect", table: "defects", id: d.id, project_id: d.project_id, project: d.project, requested_at: d.visibility_requested_at, title: d.title, subtitle: d.location_area }));
+  return { data: [...photos, ...defects].sort((a, b) => String(a.requested_at || "").localeCompare(String(b.requested_at || ""))) };
+}
+
 // Client-facing gallery — only photos explicitly marked visible to the client
 export async function getClientPhotos(projectId) {
   const { data, error } = await supabase

@@ -157,6 +157,14 @@ create policy "labour_rates_admin" on labour_rates for all to authenticated
 -- Per-project labour budget (for Budget vs Actual). Same sensitivity as projects.budget.
 alter table projects add column if not exists labour_budget numeric;
 
+-- ── CLIENT VISIBILITY APPROVAL (#11 — supervisor/worker request, builder approves) ──
+alter table project_photos add column if not exists visibility_status text default 'none'; -- none | requested | approved | rejected
+alter table project_photos add column if not exists visibility_requested_by uuid references profiles;
+alter table project_photos add column if not exists visibility_requested_at timestamptz;
+alter table defects add column if not exists visibility_status text default 'none';
+alter table defects add column if not exists visibility_requested_by uuid references profiles;
+alter table defects add column if not exists visibility_requested_at timestamptz;
+
 -- ── TIER 2 LABOUR (amend-after-approve audit + variation labour capture) ──
 alter table timesheets add column if not exists amendments jsonb default '[]';
 

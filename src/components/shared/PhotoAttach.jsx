@@ -3,7 +3,7 @@ import PhotoCaptureButton from "./PhotoCaptureButton";
 import PhotoQueueBanner from "./PhotoQueueBanner";
 import CategoryBadge from "./CategoryBadge";
 import { gpsStatusLabel, PHOTO_CATEGORIES } from "../../lib/photoUtils";
-import { getPhotosForRecord, addPhoto, setPhotoClientVisible, deletePhoto } from "../../lib/db";
+import { getPhotosForRecord, addPhoto, setPhotoClientVisible, requestClientVisibility, deletePhoto } from "../../lib/db";
 import { removeFile } from "../../lib/storage";
 
 // Reusable photo block for any record (issue, task, hazard, daily log, defect…).
@@ -17,7 +17,17 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
   const [clientVisible, setClientVisible] = useState(defaultClientVisible);
   const [view, setView] = useState(null); // photo being viewed full-screen
   const [confirmDel, setConfirmDel] = useState(false);
-  const canSetClient = user?.role === "builder" || user?.role === "supervisor";
+  // #11: only builder/office publish to the client directly; supervisor/worker request it.
+  const canPublish = user?.role === "builder" || user?.role === "office";
+  const canRequest = user?.role === "supervisor" || user?.role === "worker";
+  const canSetClient = canPublish || canRequest; // shows the control (label differs by role)
+  // Visibility fields applied to a newly added photo, per role + the toggle state.
+  const visFields = () => {
+    if (canPublish) return { client_visible: clientVisible };
+    if (canRequest && clientVisible) return { client_visible: false, visibility_status: "requested", visibility_requested_by: user.id, visibility_requested_at: new Date().toISOString() };
+    return { client_visible: false };
+  };
+  const vis = visFields();
 
   const reload = () => getPhotosForRecord(recordType, recordId).then(({ data }) => setPhotos(data));
   useEffect(() => {
@@ -31,7 +41,7 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
   const onPhoto = async (meta) => {
     const { data } = await addPhoto({
       project_id: project.id, url: meta.url, taken_by: user.id,
-      caption: caption.trim() || null, client_visible: clientVisible,
+      caption: caption.trim() || null, ...visFields(),
       linked_record_type: recordType, linked_record_id: recordId, category,
       file_name: meta.file_name, file_size_kb: meta.file_size_kb,
       gps_lat: meta.gps_lat, gps_lng: meta.gps_lng, gps_accuracy_m: meta.gps_accuracy_m,
@@ -46,6 +56,12 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
     const next = !photo.client_visible;
     setPhotos(p => p.map(x => x.id === photo.id ? { ...x, client_visible: next } : x));
     await setPhotoClientVisible(photo.id, next);
+  };
+  // Supervisor/worker: request builder approval rather than publishing directly (#11).
+  const requestVisibility = async (photo) => {
+    setPhotos(p => p.map(x => x.id === photo.id ? { ...x, visibility_status: "requested" } : x));
+    setView(v => (v && v.id === photo.id ? { ...v, visibility_status: "requested" } : v));
+    await requestClientVisibility("project_photos", photo.id, user.id);
   };
 
   const canDelete = (p) => canSetClient || p.taken_by?.id === user?.id || p.taken_by === user?.id;
@@ -70,7 +86,9 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
             <button key={p.id} onClick={() => { setConfirmDel(false); setView(p); }} style={{ aspectRatio: "1", border: "none", padding: 0, borderRadius: 8, overflow: "hidden", cursor: "pointer", background: "#1a1a1a", position: "relative" }}>
               <img src={p.url} alt={p.caption || "photo"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               <div style={{ position: "absolute", top: 3, left: 3 }}><CategoryBadge category={p.category || "general"} /></div>
-              {p.client_visible && <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 3px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>}
+              {p.client_visible
+                ? <div style={{ position: "absolute", top: 3, right: 3, background: "#22c55e", borderRadius: 4, fontSize: 8, color: "#022", padding: "1px 3px", fontFamily: "Barlow Condensed, sans-serif" }}>CLIENT</div>
+                : p.visibility_status === "requested" && <div style={{ position: "absolute", top: 3, right: 3, background: "#f59e0b", borderRadius: 4, fontSize: 8, color: "#221", padding: "1px 3px", fontFamily: "Barlow Condensed, sans-serif" }}>PENDING</div>}
             </button>
           ))}
         </div>
@@ -98,12 +116,12 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
           <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${clientVisible ? "#22c55e" : "#333"}`, background: clientVisible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {clientVisible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
           </div>
-          <span style={{ fontSize: 12, color: clientVisible ? "#22c55e" : "#888" }}>Visible to client</span>
+          <span style={{ fontSize: 12, color: clientVisible ? "#22c55e" : "#888" }}>{canPublish ? "Visible to client" : "Request client visibility"}</span>
         </button>
       )}
       <div style={{ display: "flex", gap: 8 }}>
-        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take photo" color={accent} onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, caption: caption.trim() || null, client_visible: clientVisible, linked_record_type: recordType, linked_record_id: recordId, category } }} />
-        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, caption: caption.trim() || null, client_visible: clientVisible, linked_record_type: recordType, linked_record_id: recordId, category } }} />
+        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} capture="environment" label="📷 Take photo" color={accent} onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, caption: caption.trim() || null, ...vis, linked_record_type: recordType, linked_record_id: recordId, category } }} />
+        <PhotoCaptureButton folder={`records/${project.id}/${recordType}`} projectLat={project.lat} projectLng={project.lng} label="📎 Add" onPhoto={onPhoto} queueAction={{ type: "addPhoto", payload: { project_id: project.id, taken_by: user.id, caption: caption.trim() || null, ...vis, linked_record_type: recordType, linked_record_id: recordId, category } }} />
       </div>
       <div style={{ marginTop: 10 }}><PhotoQueueBanner /></div>
 
@@ -125,13 +143,19 @@ export default function PhotoAttach({ project, user, recordType, recordId, accen
                 {view.gps_lat != null && view.gps_lng != null && <a href={`https://www.google.com/maps?q=${view.gps_lat},${view.gps_lng}`} target="_blank" rel="noreferrer" style={{ color: "#3b82f6", marginLeft: 8, textDecoration: "none" }}>· View on map ↗</a>}
               </div>
             ); })()}
-            {canSetClient ? (
+            {canPublish ? (
               <button onClick={() => { toggleClient(view); setView(v => ({ ...v, client_visible: !v.client_visible })); }} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer" }}>
                 <div style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${view.client_visible ? "#22c55e" : "#555"}`, background: view.client_visible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {view.client_visible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}
                 </div>
                 <span style={{ fontSize: 13, color: view.client_visible ? "#22c55e" : "#888" }}>Visible to client</span>
               </button>
+            ) : canRequest ? (
+              view.client_visible
+                ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 10, color: "#22c55e" }}>●</span><span style={{ fontSize: 13, color: "#22c55e" }}>Visible to client</span></div>
+                : view.visibility_status === "requested"
+                  ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 10, color: "#f59e0b" }}>●</span><span style={{ fontSize: 13, color: "#f59e0b" }}>Awaiting builder approval</span></div>
+                  : <button onClick={() => requestVisibility(view)} style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid #0ea5e9", background: "transparent", color: "#0ea5e9", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>Request client visibility</button>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 10, color: view.client_visible ? "#22c55e" : "#555" }}>●</span>

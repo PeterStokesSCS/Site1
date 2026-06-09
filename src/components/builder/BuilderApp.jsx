@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems, getAllVariations } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems, getAllVariations, getPendingVisibilityRequests, approveClientVisibility, rejectClientVisibility } from "../../lib/db";
 import { VIC_MILESTONES } from "../../lib/timeline";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
@@ -7,6 +7,7 @@ import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
 import ProjectDashboard from "../shared/ProjectDashboard";
 import ProjectHeader from "../shared/ProjectHeader";
+import BackHeader from "../shared/BackHeader";
 import LabourHub from "./LabourHub";
 import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
@@ -478,6 +479,41 @@ function CompanyCommercialTab({ projects, onOpenVariation }) {
   );
 }
 
+// ── Client-visibility approval review (#11) ────────────────────────────────────
+function VisibilityReview({ onBack }) {
+  const [reqs, setReqs] = useState(null);
+  useEffect(() => { getPendingVisibilityRequests().then(({ data }) => setReqs(data)); }, []);
+  const act = async (r, approve) => {
+    setReqs(prev => prev.filter(x => !(x.table === r.table && x.id === r.id)));
+    if (approve) await approveClientVisibility(r.table, r.id); else await rejectClientVisibility(r.table, r.id);
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#0c0c0c" }}>
+      <BackHeader title="Client Visibility" subtitle="Approve what the client can see" onBack={onBack} />
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px", maxWidth: 620, margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        {reqs === null ? [1, 2].map(i => <CardSkeleton key={i} />)
+          : reqs.length === 0 ? <EmptyState icon="👁" title="No pending requests" subtitle="Visibility requests from supervisors/workers appear here for approval" />
+          : reqs.map(r => (
+            <div key={r.table + r.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: 14, marginBottom: 10, display: "flex", gap: 12, alignItems: "center" }}>
+              {r.kind === "photo"
+                ? <img src={r.url} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: "cover", flexShrink: 0, background: "#000" }} />
+                : <div style={{ width: 64, height: 64, borderRadius: 8, background: "#251200", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>🔧</div>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10, color: "#777", fontFamily: "Barlow Condensed, sans-serif", textTransform: "uppercase" }}>{r.kind}</div>
+                <div style={{ fontSize: 14, color: "#e8e8e8", marginTop: 2 }}>{r.title}{r.subtitle ? ` · ${r.subtitle}` : ""}</div>
+                <div style={{ fontSize: 12, color: "#777", marginTop: 2 }}>{r.project?.street || ""}{r.project?.job_number ? ` · ${r.project.job_number}` : ""}</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                <button onClick={() => act(r, true)} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#22c55e", color: "#fff", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>APPROVE</button>
+                <button onClick={() => act(r, false)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>REJECT</button>
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Builder shell ──────────────────────────────────────────────────────────────
 export default function BuilderApp({ user }) {
   const [tab, setTab] = useState("dashboard");
@@ -486,6 +522,7 @@ export default function BuilderApp({ user }) {
   const [initialScreen, setInitialScreen] = useState(null);
   const [focusId, setFocusId] = useState(null);   // entityId to deep-link on the destination screen
   const [focusKind, setFocusKind] = useState(null); // disambiguates the Commercial hub category
+  const [showVisibility, setShowVisibility] = useState(false); // #11 builder approval review
   const [projects, setProjects] = useState([]);
   const [timesheets, setTimesheets] = useState([]);
   const [lastProjectId, setLastProjectId] = useState(() => { try { return localStorage.getItem(LAST_PROJECT_KEY); } catch { return null; } });
@@ -499,6 +536,7 @@ export default function BuilderApp({ user }) {
   const openAction = (item) => {
     const t = item.target;
     if (t.kind === "timesheet") { navigate("labour"); return; }
+    if (t.kind === "visibility") { setShowVisibility(true); return; }
     const proj = projects.find(p => p.id === t.projectId);
     if (proj) { setInitialScreen(KIND_TO_PROJECT_SCREEN[t.kind] || null); setFocusId(t.entityId || null); setFocusKind(t.kind); open(proj); }
   };
@@ -524,6 +562,8 @@ export default function BuilderApp({ user }) {
     await approveTimesheet(id, user.id);
     setTimesheets(prev => prev.map(t => t.id === id ? { ...t, status: "approved" } : t));
   };
+
+  if (showVisibility) return <VisibilityReview onBack={() => setShowVisibility(false)} />;
 
   // Opening a project takes over the full screen with its Project Dashboard.
   // Give the builder the same project-centric header as the supervisor, incl. an

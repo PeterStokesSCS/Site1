@@ -236,6 +236,22 @@ export const REGISTRY = [
       target: { kind: "hazard", projectId: h.project_id, entityId: h.id },
     }));
   }},
+  // #11: supervisor/worker requested client visibility on a photo/defect — builder approves.
+  { key: "client_visibility.pending", role: "builder", priority: "medium", async query() {
+    const [ph, df] = await Promise.all([
+      supabase.from("project_photos").select(`id, project_id, caption, category, visibility_requested_at, ${PROJ}`).eq("visibility_status", "requested"),
+      supabase.from("defects").select(`id, project_id, title, visibility_requested_at, ${PROJ}`).eq("visibility_status", "requested"),
+    ]);
+    const rows = [
+      ...(ph.data || []).map(p => ({ project: p.project, projectId: p.project_id, since: p.visibility_requested_at, label: p.caption ? `photo "${p.caption}"` : `photo (${p.category || "general"})`, id: p.id })),
+      ...(df.data || []).map(d => ({ project: d.project, projectId: d.project_id, since: d.visibility_requested_at, label: `defect "${d.title}"`, id: d.id })),
+    ];
+    return rows.map(x => mk({
+      type: "client_visibility.pending", priority: "medium", role: "builder", project: x.project, since: x.since,
+      description: `Client visibility approval — ${x.label}`,
+      target: { kind: "visibility", projectId: x.projectId, entityId: x.id },
+    }));
+  }},
   { key: "variation.eot_unapplied", role: "builder", priority: "medium", async query() {
     const { data } = await supabase.from("variations").select(`id, project_id, ref, title, eot, eot_days, applied_to_forecast, status, approval_date, ${PROJ}`).eq("status", "approved").eq("eot", true).eq("applied_to_forecast", false);
     return (data || []).filter(v => Number(v.eot_days) > 0).map(v => mk({
@@ -414,6 +430,7 @@ const GROUP_META = {
   "hazard.high_risk_open":     { label: "high-risk hazards", groupEntity: null },
   "issue.open":                { label: "open issues",       groupEntity: null },
   "inspection.due_soon":       { label: "inspections due",   groupEntity: null },
+  "client_visibility.pending": { label: "client visibility approvals", groupEntity: null },
 };
 export function groupItems(items, threshold = 3) {
   const byKey = {};

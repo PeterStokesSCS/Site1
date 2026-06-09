@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import PhotoAttach from "./PhotoAttach";
-import { getDefects, createDefect, updateDefect, deleteDefect } from "../../lib/db";
+import { getDefects, createDefect, updateDefect, deleteDefect, requestClientVisibility } from "../../lib/db";
 
 const inp = { width: "100%", background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 8, color: "#f0f0f0", fontSize: 14, padding: "9px 11px", fontFamily: "DM Sans, sans-serif", boxSizing: "border-box", colorScheme: "dark" };
 const lbl = { fontSize: 10, color: "#777", textTransform: "uppercase", letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif", marginBottom: 4, display: "block" };
@@ -17,7 +17,10 @@ export default function DefectsModule({ project, user, onBack }) {
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(null);
   const canEdit = user?.role === "builder" || user?.role === "office" || user?.role === "supervisor";
-  const canSetClient = user?.role === "builder" || user?.role === "supervisor";
+  // #11: builder/office publish to client directly; supervisor requests approval.
+  const canPublish = user?.role === "builder" || user?.role === "office";
+  const canRequest = user?.role === "supervisor";
+  const canSetClient = canPublish || canRequest;
 
   const load = () => getDefects(project.id).then(({ data }) => setItems(data));
   useEffect(() => { load(); }, [project.id]);
@@ -28,7 +31,8 @@ export default function DefectsModule({ project, user, onBack }) {
     const { data } = await createDefect({
       project_id: project.id, title: form.title.trim(), location_area: form.location_area.trim() || null,
       description: form.description.trim() || null, related_trade: form.related_trade.trim() || null,
-      priority: form.priority, due_date: form.due_date || null, client_visible: form.client_visible,
+      priority: form.priority, due_date: form.due_date || null,
+      ...(canPublish ? { client_visible: form.client_visible } : form.client_visible ? { client_visible: false, visibility_status: "requested", visibility_requested_by: user.id, visibility_requested_at: new Date().toISOString() } : { client_visible: false }),
       status: "open", raised_by: user.id,
     });
     if (data) setItems(prev => [data, ...(prev || [])]);
@@ -50,6 +54,10 @@ export default function DefectsModule({ project, user, onBack }) {
     const v = !it.client_visible;
     setItems(prev => prev.map(x => x.id === it.id ? { ...x, client_visible: v } : x));
     await updateDefect(it.id, { client_visible: v });
+  };
+  const requestClient = async (it) => {
+    setItems(prev => prev.map(x => x.id === it.id ? { ...x, visibility_status: "requested" } : x));
+    await requestClientVisibility("defects", it.id, user.id);
   };
   const remove = async (it) => { setItems(prev => prev.filter(x => x.id !== it.id)); await deleteDefect(it.id); };
 
@@ -84,7 +92,7 @@ export default function DefectsModule({ project, user, onBack }) {
             {canSetClient && (
               <button onClick={() => setForm(f => ({ ...f, client_visible: !f.client_visible }))} style={{ display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "0 0 12px" }}>
                 <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${form.client_visible ? "#22c55e" : "#444"}`, background: form.client_visible ? "#22c55e" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>{form.client_visible && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>✓</span>}</div>
-                <span style={{ fontSize: 13, color: form.client_visible ? "#22c55e" : "#888" }}>Visible to client</span>
+                <span style={{ fontSize: 13, color: form.client_visible ? "#22c55e" : "#888" }}>{canPublish ? "Visible to client" : "Request client visibility"}</span>
               </button>
             )}
             <button onClick={save} disabled={saving || !form.title.trim()} style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: form.title.trim() ? "#f97316" : "#222", color: form.title.trim() ? "#fff" : "#555", fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, cursor: form.title.trim() ? "pointer" : "not-allowed" }}>{saving ? "SAVING…" : "ADD DEFECT"}</button>
@@ -97,7 +105,9 @@ export default function DefectsModule({ project, user, onBack }) {
             <div key={it.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "13px 14px", marginBottom: 8, opacity: it.status === "closed" ? 0.6 : 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, color: "#e8e8e8" }}>{it.title}{it.client_visible && <span style={{ fontSize: 8, fontFamily: "Barlow Condensed, sans-serif", color: "#022", background: "#22c55e", padding: "1px 5px", borderRadius: 4, marginLeft: 8 }}>CLIENT</span>}</div>
+                  <div style={{ fontSize: 14, color: "#e8e8e8" }}>{it.title}{it.client_visible
+                    ? <span style={{ fontSize: 8, fontFamily: "Barlow Condensed, sans-serif", color: "#022", background: "#22c55e", padding: "1px 5px", borderRadius: 4, marginLeft: 8 }}>CLIENT</span>
+                    : it.visibility_status === "requested" && <span style={{ fontSize: 8, fontFamily: "Barlow Condensed, sans-serif", color: "#221", background: "#f59e0b", padding: "1px 5px", borderRadius: 4, marginLeft: 8 }}>PENDING</span>}</div>
                   <div style={{ fontSize: 11, color: "#666", marginTop: 3 }}>{[it.location_area, it.related_trade, it.due_date ? `due ${fmt(it.due_date)}` : null].filter(Boolean).join(" · ")}</div>
                   {it.description && <div style={{ fontSize: 12, color: "#777", marginTop: 4 }}>{it.description}</div>}
                 </div>
@@ -108,7 +118,13 @@ export default function DefectsModule({ project, user, onBack }) {
                   {it.status !== "closed"
                     ? <button onClick={() => close(it)} style={btn("#22c55e", true)}>✓ Close</button>
                     : <button onClick={() => reopen(it)} style={btn("#f59e0b")}>Reopen</button>}
-                  {canSetClient && <button onClick={() => toggleClient(it)} style={btn(it.client_visible ? "#22c55e" : "#888")}>{it.client_visible ? "✓ Client" : "Client"}</button>}
+                  {canPublish
+                    ? <button onClick={() => toggleClient(it)} style={btn(it.client_visible ? "#22c55e" : "#888")}>{it.client_visible ? "✓ Client" : "Client"}</button>
+                    : canRequest && (it.client_visible
+                        ? <span style={{ fontSize: 11, color: "#22c55e", fontFamily: "Barlow Condensed, sans-serif", padding: "6px 0" }}>✓ Client</span>
+                        : it.visibility_status === "requested"
+                          ? <span style={{ fontSize: 11, color: "#f59e0b", fontFamily: "Barlow Condensed, sans-serif", padding: "6px 0" }}>Awaiting approval</span>
+                          : <button onClick={() => requestClient(it)} style={btn("#0ea5e9")}>Request client</button>)}
                   <button onClick={() => setOpen(open === it.id ? null : it.id)} style={btn("#a855f7")}>📷 Photos</button>
                   <button onClick={() => remove(it)} style={{ ...btn("#ef4444"), marginLeft: "auto" }}>🗑</button>
                 </div>
