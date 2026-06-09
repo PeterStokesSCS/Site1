@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
+import { useFocusRow, FOCUS_HL } from "./useFocusRow";
 import { getMilestones, updateMilestone, recordForecastChange, getVariations, updateVariation } from "../../lib/db";
 import { milestoneStatus, milestoneVariance, eotAffectedMilestones, addDays } from "../../lib/timeline";
 
@@ -12,7 +13,7 @@ const STATUS_STYLE = {
 const fmt = (d) => d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const dateInput = { background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 6, color: "#f0f0f0", fontSize: 12, padding: "5px 7px", fontFamily: "DM Sans, sans-serif", colorScheme: "dark" };
 
-export default function TimelineScreen({ project, user, onBack }) {
+export default function TimelineScreen({ project, user, onBack, focusId }) {
   const [milestones, setMilestones] = useState(null);
   const [eotVars, setEotVars] = useState([]);
   const [apply, setApply] = useState(null); // { variation, fromMilestoneId, cascade }
@@ -25,6 +26,7 @@ export default function TimelineScreen({ project, user, onBack }) {
       setEotVars((data || []).filter(v => v.status === "approved" && v.eot && Number(v.eot_days) > 0 && !v.applied_to_forecast)));
   };
   useEffect(() => { load(); }, [project.id]);
+  const { rowRef, highlightId } = useFocusRow(focusId, milestones !== null);
 
   const savePlanned = async (m, val) => {
     setMilestones(prev => prev.map(x => x.id === m.id ? { ...x, planned_date: val, forecast_date: x.forecast_date || val } : x));
@@ -112,7 +114,7 @@ export default function TimelineScreen({ project, user, onBack }) {
                 const st = STATUS_STYLE[milestoneStatus(m)];
                 const variance = milestoneVariance(m);
                 return (
-                  <div key={m.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+                  <div key={m.id} ref={rowRef(m.id)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "12px 14px", marginBottom: 8, ...(highlightId === m.id ? FOCUS_HL : null) }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: canEdit ? 10 : 4 }}>
                       <div style={{ fontSize: 14, color: "#e8e8e8" }}>{m.name}</div>
                       <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: st.c, background: st.bg, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" }}>{st.label}</span>

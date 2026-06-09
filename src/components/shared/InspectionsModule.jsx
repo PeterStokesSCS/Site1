@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import BackHeader from "./BackHeader";
 import { EmptyState } from "./LoadingScreen";
 import PhotoAttach from "./PhotoAttach";
+import { useFocusRow, FOCUS_HL } from "./useFocusRow";
 import { getQaItems, createQaItem, updateQaItem, deleteQaItem, getMilestones } from "../../lib/db";
 import { melbourneTodayStr } from "../../lib/actionQueue";
 import { inspectionDueSoon } from "../../lib/timeline";
@@ -17,7 +18,7 @@ const STATUS = {
   failed:      { label: "Failed",      color: "#ef4444", bg: "#2a0c0c" },
 };
 
-export default function InspectionsModule({ project, user, onBack }) {
+export default function InspectionsModule({ project, user, onBack, focusId }) {
   const [items, setItems] = useState(null);
   const [milestones, setMilestones] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -30,6 +31,7 @@ export default function InspectionsModule({ project, user, onBack }) {
 
   const load = () => getQaItems(project.id).then(({ data }) => setItems(data));
   useEffect(() => { load(); getMilestones(project.id).then(({ data }) => setMilestones(data)); }, [project.id]);
+  const { rowRef, highlightId } = useFocusRow(focusId, items !== null);
   const msName = (id) => milestones.find(m => m.id === id)?.name;
 
   const save = async () => {
@@ -88,7 +90,7 @@ export default function InspectionsModule({ project, user, onBack }) {
             const st = STATUS[it.status] || STATUS.not_started;
             const soon = inspectionDueSoon(it, today);
             return (
-              <div key={it.id} style={{ background: "#141414", border: `1px solid ${soon ? "#f59e0b" : "#1e1e1e"}`, borderRadius: 10, padding: "13px 14px", marginBottom: 8 }}>
+              <div key={it.id} ref={rowRef(it.id)} style={{ background: "#141414", border: `1px solid ${soon ? "#f59e0b" : "#1e1e1e"}`, borderRadius: 10, padding: "13px 14px", marginBottom: 8, ...(highlightId === it.id ? FOCUS_HL : null) }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14, color: "#e8e8e8" }}>{it.title}{it.hold_point && <span style={{ fontSize: 9, fontFamily: "Barlow Condensed, sans-serif", color: "#f59e0b", background: "#251d00", padding: "1px 6px", borderRadius: 4, marginLeft: 8 }}>HOLD POINT</span>}</div>

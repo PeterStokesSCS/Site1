@@ -105,7 +105,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "tasks":         return <TasksFeature {...props} focusId={focus} />;
       case "issues":        return <IssuesFeature {...props} focusId={focus} />;
       case "attendance":    return <OnSiteFeature {...props} />;
-      case "safety":        return <SafetyScreen {...props} />;
+      case "safety":        return <SafetyScreen {...props} focusId={focus} />;
       case "dailyLog":      return <DailyLogScreen {...props} />;
       case "variations":    return <VariationsList {...props} focusId={focus} />;
       case "communication": return <ChatScreen {...props} />;
@@ -113,8 +113,8 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
       case "plans":         return <ProjectDocsScreen {...props} />;
       case "photos":        return <PhotosScreen {...props} />;
       case "commercial":    return <CommercialModule {...props} />;
-      case "timeline":      return user?.role === "supervisor" ? <LookaheadScreen {...props} /> : <TimelineScreen {...props} />;
-      case "inspections":   return <InspectionsModule {...props} />;
+      case "timeline":      return user?.role === "supervisor" ? <LookaheadScreen {...props} /> : <TimelineScreen {...props} focusId={focus} />;
+      case "inspections":   return <InspectionsModule {...props} focusId={focus} />;
       case "defects":       return <DefectsModule {...props} />;
       default: break;
     }

@@ -11,6 +11,7 @@ import { melbourneTodayStr } from "../../lib/actionQueue";
 import { fetchWeather } from "../../lib/weather";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
 import PhotoAttach from "../shared/PhotoAttach";
+import { useFocusRow, FOCUS_HL } from "../shared/useFocusRow";
 import PhotoCaptureButton from "../shared/PhotoCaptureButton";
 import PhotoQueueBanner from "../shared/PhotoQueueBanner";
 
@@ -68,9 +69,10 @@ function Screen({ title, subtitle, onBack, children, action }) {
 }
 
 // ── Safety ─────────────────────────────────────────────────────────────────────
-export function SafetyScreen({ project, user, onBack }) {
+export function SafetyScreen({ project, user, onBack, focusId }) {
   const [hazards, setHazards] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { rowRef, highlightId } = useFocusRow(focusId, !loading);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", risk: "medium", category: "", control_measures: "" });
   const RISK_COLOR = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
@@ -114,7 +116,7 @@ export function SafetyScreen({ project, user, onBack }) {
         hazards.length === 0
           ? <EmptyState icon="🛡" title="No hazards reported" subtitle="Use the Report button to log a hazard" />
           : hazards.map(h => (
-            <div key={h.id} style={{ background: "#141414", border: "1px solid #1e1e1e", borderLeft: `4px solid ${h.status === "resolved" ? "#333" : RISK_COLOR[h.risk]}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+            <div key={h.id} ref={rowRef(h.id)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderLeft: `4px solid ${h.status === "resolved" ? "#333" : RISK_COLOR[h.risk]}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8, ...(highlightId === h.id ? FOCUS_HL : null) }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, color: h.status === "resolved" ? "#555" : "#ccc" }}>{h.title}</div>
