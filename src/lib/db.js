@@ -651,7 +651,7 @@ export async function createPurchaseOrder(payload) {
 export async function getPurchaseOrders(projectId) {
   const { data, error } = await supabase
     .from("purchase_orders")
-    .select("*, subbie:profiles(full_name, company)")
+    .select("*, subbie:profiles!purchase_orders_subbie_id_fkey(full_name, company)")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
   return { data: data || [], error };
