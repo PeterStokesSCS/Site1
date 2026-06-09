@@ -228,10 +228,10 @@ function TaskCreatedScreen({ task, projectName, onView, onAnother, onDone }) {
   );
 }
 
-function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId, projectName, initialFilter }) {
+function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId, projectName, initialFilter, initialShowForm }) {
   const [filter, setFilter] = useState(initialFilter || "all");
   const [selectedTask, setSelectedTask] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
   const [allTasks, setAllTasks] = useState(tasks);
   const [saving, setSaving] = useState(false);
@@ -389,6 +389,7 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
   const [view, setView] = useState("landing"); // landing | mine | project | others
   const [focusTask, setFocusTask] = useState(null); // deep-linked task (opens detail directly)
   const [groupFilter, setGroupFilter] = useState(null); // from a grouped action item, e.g. "overdue"
+  const [autoNew, setAutoNew] = useState(false);        // FAB "new" intent → open the create form
 
   useEffect(() => {
     Promise.all([getTasksByProject(project.id), getProfiles()]).then(([t, p]) => {
@@ -403,6 +404,7 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
   const focusedRef = useRef(null);
   useEffect(() => {
     if (!focusId || focusedRef.current === focusId) return;
+    if (focusId === "new") { focusedRef.current = focusId; setAutoNew(true); setView("project"); return; }
     if (String(focusId).startsWith("group:")) {
       focusedRef.current = focusId;
       setGroupFilter(focusId.slice("group:".length));
@@ -421,13 +423,13 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
   const overdueCount = (list) => list.filter(isOverdue).length;
   const todayCount   = (list) => list.filter(isDueToday).length;
   const openCount    = (list) => list.filter(t => t.status !== "completed").length;
-  const toLanding = () => { setView("landing"); setGroupFilter(null); };
+  const toLanding = () => { setView("landing"); setGroupFilter(null); setAutoNew(false); };
   const common = { loading, user, workers, projectId: project.id, projectName: project.street };
 
   if (focusTask)          return <TaskDetail task={focusTask} user={user} onBack={() => setFocusTask(null)} />;
   if (view === "mine")    return <TaskList title="Assigned to Me" tasks={myTasks}      onBack={toLanding} {...common} />;
   if (view === "created") return <TaskList title="Created by Me"  tasks={createdByMe}  onBack={toLanding} {...common} />;
-  if (view === "project") return <TaskList title="Project Tasks"  tasks={projectTasks} onBack={toLanding} initialFilter={groupFilter} {...common} />;
+  if (view === "project") return <TaskList title="Project Tasks"  tasks={projectTasks} onBack={toLanding} initialFilter={groupFilter} initialShowForm={autoNew} {...common} />;
   if (view === "others")  return <OthersTasksList tasks={otherTasks} workers={workers} user={user} onBack={() => setView("landing")} />;
 
   return (

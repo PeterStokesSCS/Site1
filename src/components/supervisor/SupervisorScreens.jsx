@@ -75,6 +75,7 @@ export function SafetyScreen({ project, user, onBack, focusId }) {
   const [hazards, setHazards] = useState([]);
   const [loading, setLoading] = useState(true);
   const { rowRef, highlightId } = useFocusRow(focusId, !loading);
+  useEffect(() => { if (focusId === "new") setShowForm(true); }, [focusId]); // #13 FAB quick-add
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", risk: "medium", category: "", control_measures: "" });
   const RISK_COLOR = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };

@@ -83,6 +83,29 @@ function StatRow({ stats, onNav, seen = {} }) {
 
 const STAT_VAL = { attendance: "onSite", tasks: "tasks", issues: "issues", safety: "hazards" };
 
+// #13: big obvious bottom quick-add control (mobile/site). Expands to common actions,
+// each opening the relevant screen with its create flow ready.
+function QuickAddFab({ onPick }) {
+  const [open, setOpen] = useState(false);
+  const actions = [
+    { key: "tasks",  label: "Add Task",      icon: "✅", color: "#f59e0b" },
+    { key: "safety", label: "Report Hazard", icon: "⚠️", color: "#ef4444" },
+    { key: "issues", label: "Add Issue",     icon: "⚡", color: "#f97316" },
+    { key: "photos", label: "Take Photo",    icon: "📷", color: "#a855f7" },
+  ];
+  return (
+    <div style={{ position: "fixed", right: 18, bottom: 20, zIndex: 150, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
+      {open && actions.map(a => (
+        <button key={a.key} onClick={() => { setOpen(false); onPick(a.key); }} style={{ display: "flex", alignItems: "center", gap: 10, background: "#1c1c1c", border: `1px solid ${a.color}66`, borderRadius: 24, padding: "10px 16px", cursor: "pointer", boxShadow: "0 4px 14px rgba(0,0,0,0.5)" }}>
+          <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, color: "#eee", letterSpacing: 0.3 }}>{a.label}</span>
+          <span style={{ fontSize: 18 }}>{a.icon}</span>
+        </button>
+      ))}
+      <button onClick={() => setOpen(o => !o)} aria-label="Quick add" style={{ width: 60, height: 60, borderRadius: "50%", border: "none", background: "#e07b39", color: "#fff", fontSize: 32, fontWeight: 300, cursor: "pointer", boxShadow: "0 4px 16px rgba(224,123,57,0.5)", display: "flex", alignItems: "center", justifyContent: "center", transform: open ? "rotate(45deg)" : "none", transition: "transform 0.15s", alignSelf: "flex-end" }}>+</button>
+    </div>
+  );
+}
+
 export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, focusId, focusKind, onSwitchProject, onScreenChange }) {
   const [screen, setScreen] = useState(initialScreen || null);
   // entityId an action item wants opened on the destination screen (deep-link to the exact record).
@@ -116,6 +139,8 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
 
   // Open a screen from a normal tile/stat tap — clears any stale deep-link focus.
   const openScreen = (key) => { setFocus(null); setFocusK(null); setScreen(key); };
+  // FAB quick-add: open the screen with its create form ready (#13).
+  const openNew = (key) => { setFocusK(null); setFocus("new"); setScreen(key); };
 
   // Supervisor's "My actions today" — only computed/shown for supervisors here.
   const isSupervisor = user?.role === "supervisor";
@@ -192,6 +217,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
           </div>
         ))}
       </div>
+      {isSupervisor && <QuickAddFab onPick={openNew} />}
     </div>
   );
 }

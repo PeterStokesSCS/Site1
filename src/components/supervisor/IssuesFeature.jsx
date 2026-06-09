@@ -248,9 +248,9 @@ function IssueRow({ issue, onSelect }) {
 }
 
 // ── Issue List ─────────────────────────────────────────────────────────────────
-function IssueList({ title, issues, user, onBack, projectId, onIssueCreated }) {
+function IssueList({ title, issues, user, onBack, projectId, onIssueCreated, initialShowForm }) {
   const [filter, setFilter] = useState("all");
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!initialShowForm);
   const [allIssues, setAllIssues] = useState(issues);
   const [selectedIssue, setSelectedIssue] = useState(null);
 
@@ -341,6 +341,7 @@ export default function IssuesFeature({ project, user, onBack, focusId }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("landing");
   const [focusIssue, setFocusIssue] = useState(null); // deep-linked issue (opens detail directly)
+  const [autoNew, setAutoNew] = useState(false);      // FAB "new" → open the create form
 
   useEffect(() => {
     Promise.all([getIssues(project.id), getProfiles()]).then(([i, p]) => {
@@ -354,6 +355,7 @@ export default function IssuesFeature({ project, user, onBack, focusId }) {
   const focusedRef = useRef(null);
   useEffect(() => {
     if (!focusId || focusedRef.current === focusId) return;
+    if (focusId === "new") { focusedRef.current = focusId; setAutoNew(true); setView("project"); return; }
     const i = issues.find(x => x.id === focusId);
     if (i) { setFocusIssue(i); focusedRef.current = focusId; }
   }, [focusId, issues]);
@@ -369,7 +371,7 @@ export default function IssuesFeature({ project, user, onBack, focusId }) {
 
   if (focusIssue)         return <IssueDetail issue={focusIssue} user={user} onBack={() => setFocusIssue(null)} />;
   if (view === "mine")    return <IssueList title="My Issues"      issues={myIssues}      user={user} onBack={() => setView("landing")} projectId={project.id} onIssueCreated={reload} />;
-  if (view === "project") return <IssueList title="Project Issues" issues={projectIssues} user={user} onBack={() => setView("landing")} projectId={project.id} onIssueCreated={reload} />;
+  if (view === "project") return <IssueList title="Project Issues" issues={projectIssues} user={user} onBack={() => { setView("landing"); setAutoNew(false); }} projectId={project.id} onIssueCreated={reload} initialShowForm={autoNew} />;
   if (view === "others")  return <OthersIssuesList issues={othersIssues} workers={workers} user={user} onBack={() => setView("landing")} />;
 
   return (
