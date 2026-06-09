@@ -157,11 +157,18 @@ Field staff and clients can no longer read `purchase_orders`/`variations`; subbi
 their own POs; client variation-approval path preserved (client kept in read+write).
 **Whole sandbox suite: 24 pass / 0 fail / 3 skip (audit — migration pending).**
 
-> Still open (R6b): the OTHER `using(true)`-only tables (`qa_items`, `defects`, `blockers`,
-> `commercial_items`, `task_comments`, `issue_comments`, `subbie_requests`, `po_messages`,
-> `eot_claims`, `procurement_items`, `material_requests`, `documents`, `messages`,
-> `milestones`) still allow blanket within-org access. They're not yet covered by RBAC tests.
-> Stage 3b should give each a proper role-aware policy (and add tests) before rollout.
+#### 5.2b AFTER Stage 3b (2026-06-10) — ✅ FINANCIAL TABLES GATED
+Extended seed + tests to `commercial_items`, `eot_claims`, `procurement_items`; baseline
+confirmed all 3 leaked to field staff AND clients (6 fails). Applied Stage 3b (drop dev-era
+`using(true)` + short-name variants `eot_read`/`procurement_read`; gate to builder/office +
+supervisor-on-project). **Full suite: 39 / 39 PASS** (isolation 23, RBAC 13, audit 3).
+
+> Still open (R6b, lower priority): the OPS-only `using(true)` tables — `defects`, `qa_items`,
+> `blockers`, `task_comments`, `issue_comments`, `subbie_requests`, `po_messages`,
+> `material_requests`, `documents`, `messages`, `milestones`. Blanket within-org access here
+> is mostly intended (the site team needs these), but **client/subcontractor exposure** to
+> them should be reviewed — especially `subbie_requests` and `po_messages`. Add targeted RBAC
+> tests + Stage 3c policies for those two before rollout.
 
 ### 5.3 Load — `npm run load:smoke|100|250|500|1000`
 k6 against Supabase REST/Auth as seeded sandbox users (~85% read / 15% write). Thresholds:
