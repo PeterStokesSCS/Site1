@@ -1,5 +1,8 @@
--- SITE1 multi-tenant — Phase 0–1 (ADDITIVE, REVERSIBLE). No RLS change here.
--- Phase 0: organisations + org_members + auth_org_ids() helper.
+-- SITE1 multi-tenant — Phase 0–1 (ADDITIVE, REVERSIBLE).
+-- Existing tables' RLS is unchanged (only an org_id column is added). The NEW tenant
+-- tables get RLS + explicit policies here — they must never be API-exposed unguarded.
+
+-- Phase 0: organisations + org_members + helpers.
 create table if not exists organisations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -18,10 +21,33 @@ create table if not exists org_members (
 );
 create index if not exists idx_org_members_user on org_members(user_id);
 
+-- Stable, SECURITY DEFINER helpers (bypass RLS → safe to call from policies; no recursion).
 create or replace function auth_org_ids() returns setof uuid
   language sql stable security definer set search_path = public as $$
   select org_id from org_members where user_id = auth.uid()
 $$;
+create or replace function is_org_admin(p_org uuid) returns boolean
+  language sql stable security definer set search_path = public as $$
+  select exists (select 1 from org_members
+                 where org_id = p_org and user_id = auth.uid() and role in ('builder','office'))
+$$;
+
+-- RLS on the new tenant tables.
+alter table organisations enable row level security;
+drop policy if exists "organisations_read" on organisations;
+drop policy if exists "organisations_admin_write" on organisations;
+create policy "organisations_read" on organisations for select to authenticated
+  using (id in (select auth_org_ids()));
+create policy "organisations_admin_write" on organisations for all to authenticated
+  using (is_org_admin(id)) with check (is_org_admin(id));
+
+alter table org_members enable row level security;
+drop policy if exists "org_members_read_own" on org_members;
+drop policy if exists "org_members_admin_write" on org_members;
+create policy "org_members_read_own" on org_members for select to authenticated
+  using (user_id = auth.uid());                                   -- see your own memberships
+create policy "org_members_admin_write" on org_members for all to authenticated
+  using (is_org_admin(org_id)) with check (is_org_admin(org_id)); -- admins manage + see their org's roster
 
 -- Phase 1: add org_id everywhere, backfill existing data as one org, index it.
 do $$

@@ -14,6 +14,8 @@ begin
     execute format('alter table %I drop column if exists org_id', t);
   end loop;
 end $$;
+-- dropping the tables removes their RLS policies; also drop the helper functions.
+drop function if exists is_org_admin(uuid);
 drop function if exists auth_org_ids();
 drop table if exists org_members;
 drop table if exists organisations;
