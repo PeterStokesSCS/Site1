@@ -3,7 +3,7 @@ import {
   hoursSince, isSignoffOverdue, isShiftTooLong, isTaskOverdue, dueAtIso,
   sortItems, melbourneTodayStr, melbourneDayStartUtc, melbourneDayRangeUtc, CONFIG,
   melbourneCutoffUtc, openShiftHoursToCutoff, isShiftPastCutoff, groupPendingLabour,
-  variationLabourCost,
+  variationLabourCost, groupItems,
 } from "./actionQueue";
 
 const HOURS = (h) => new Date(Date.now() - h * 3600000).toISOString();
@@ -52,7 +52,42 @@ describe("task.overdue logic", () => {
   });
 });
 
+describe("groupItems (#3 consolidation)", () => {
+  const overdue = (i) => ({ type: "task.overdue", projectId: "p1", priority: "high", ageHours: i, target: { kind: "task", projectId: "p1", entityId: `t${i}` } });
+  it("groups >3 of the same type in the same project into one (deep-links to filtered view)", () => {
+    const g = groupItems([overdue(1), overdue(2), overdue(3), overdue(4), overdue(5)]);
+    expect(g.length).toBe(1);
+    expect(g[0].grouped).toBe(true);
+    expect(g[0].count).toBe(5);
+    expect(g[0].target.entityId).toBe("group:overdue");
+    expect(g[0].description).toMatch(/5 overdue tasks/);
+  });
+  it("keeps <=3 individual", () => {
+    expect(groupItems([overdue(1), overdue(2), overdue(3)]).length).toBe(3);
+  });
+  it("does not group types without group metadata", () => {
+    const v = (i) => ({ type: "variation.signoff_overdue", projectId: "p1", priority: "high", ageHours: i, target: {} });
+    expect(groupItems([v(1), v(2), v(3), v(4)]).length).toBe(4);
+  });
+  it("groups per project, not across projects", () => {
+    const a = (i) => ({ type: "task.overdue", projectId: "pA", priority: "high", ageHours: i, target: {} });
+    const b = (i) => ({ type: "task.overdue", projectId: "pB", priority: "high", ageHours: i, target: {} });
+    // 4 in pA -> grouped; 2 in pB -> individual
+    const g = groupItems([a(1), a(2), a(3), a(4), b(1), b(2)]);
+    expect(g.filter(x => x.grouped).length).toBe(1);
+    expect(g.length).toBe(3); // 1 group + 2 individual
+  });
+});
+
 describe("sortItems", () => {
+  it("supervisor order: hazards before tasks before inspections (not raw priority)", () => {
+    const items = [
+      { type: "inspection.due_soon", priority: "high", ageHours: 1 },
+      { type: "task.overdue", priority: "high", ageHours: 1 },
+      { type: "hazard.open", priority: "high", ageHours: 1 },
+    ];
+    expect(sortItems(items, "supervisor").map(i => i.type)).toEqual(["hazard.open", "task.overdue", "inspection.due_soon"]);
+  });
   it("sorts by priority (high→low) then age (oldest first)", () => {
     const items = [
       { priority: "low", ageHours: 100 },

@@ -192,8 +192,8 @@ function TaskDetail({ task: initial, user, onBack }) {
 }
 
 // ── Task List ──────────────────────────────────────────────────────────────────
-function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId }) {
-  const [filter, setFilter] = useState("all");
+function TaskList({ title, tasks, loading, user, onBack, onAddTask, workers, projectId, initialFilter }) {
+  const [filter, setFilter] = useState(initialFilter || "all");
   const [selectedTask, setSelectedTask] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: "", assignee_id: "", due_date: TODAY, due_time: "", priority: "medium", description: "" });
@@ -333,6 +333,7 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("landing"); // landing | mine | project | others
   const [focusTask, setFocusTask] = useState(null); // deep-linked task (opens detail directly)
+  const [groupFilter, setGroupFilter] = useState(null); // from a grouped action item, e.g. "overdue"
 
   useEffect(() => {
     Promise.all([getTasksByProject(project.id), getProfiles()]).then(([t, p]) => {
@@ -342,10 +343,17 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
     });
   }, [project.id]);
 
-  // Deep-link: open the targeted task's detail once it's loaded (one-shot per focusId).
+  // Deep-link: a grouped item ("group:overdue") opens the Project Tasks list pre-filtered;
+  // a specific task id opens its detail. One-shot per focusId.
   const focusedRef = useRef(null);
   useEffect(() => {
     if (!focusId || focusedRef.current === focusId) return;
+    if (String(focusId).startsWith("group:")) {
+      focusedRef.current = focusId;
+      setGroupFilter(focusId.slice("group:".length));
+      setView("project");
+      return;
+    }
     const t = tasks.find(x => x.id === focusId);
     if (t) { setFocusTask(t); focusedRef.current = focusId; }
   }, [focusId, tasks]);
@@ -359,7 +367,7 @@ export default function TasksFeature({ project, user, onBack, focusId }) {
 
   if (focusTask)          return <TaskDetail task={focusTask} user={user} onBack={() => setFocusTask(null)} />;
   if (view === "mine")    return <TaskList title="My Tasks"      tasks={myTasks}      loading={loading} user={user} onBack={() => setView("landing")} workers={workers} projectId={project.id} />;
-  if (view === "project") return <TaskList title="Project Tasks" tasks={projectTasks} loading={loading} user={user} onBack={() => setView("landing")} workers={workers} projectId={project.id} />;
+  if (view === "project") return <TaskList title="Project Tasks" tasks={projectTasks} loading={loading} user={user} onBack={() => { setView("landing"); setGroupFilter(null); }} workers={workers} projectId={project.id} initialFilter={groupFilter} />;
   if (view === "others")  return <OthersTasksList tasks={otherTasks} workers={workers} user={user} onBack={() => setView("landing")} />;
 
   return (

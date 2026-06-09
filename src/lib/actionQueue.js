@@ -405,14 +405,62 @@ export const REGISTRY = [
   }},
 ];
 
+// ── Consolidation (#3): >threshold items of one type in one project → one group ─
+// Grouped item deep-links to a filtered view (task.overdue → the overdue task list).
+const GROUP_META = {
+  "task.overdue":              { label: "overdue tasks",     groupEntity: "group:overdue" },
+  "task.material_not_on_site": { label: "material blockers", groupEntity: null },
+  "hazard.open":               { label: "open hazards",      groupEntity: null },
+  "hazard.high_risk_open":     { label: "high-risk hazards", groupEntity: null },
+  "issue.open":                { label: "open issues",       groupEntity: null },
+  "inspection.due_soon":       { label: "inspections due",   groupEntity: null },
+};
+export function groupItems(items, threshold = 3) {
+  const byKey = {};
+  for (const it of items) {
+    const k = `${it.type}::${it.projectId || "-"}`;
+    (byKey[k] = byKey[k] || []).push(it);
+  }
+  const out = [];
+  for (const arr of Object.values(byKey)) {
+    const meta = GROUP_META[arr[0].type];
+    if (meta && arr.length > threshold) {
+      const oldest = arr.reduce((a, b) => ((a.ageHours || 0) >= (b.ageHours || 0) ? a : b));
+      out.push({
+        ...oldest,
+        id: `${arr[0].type}:group:${arr[0].projectId || "-"}`,
+        grouped: true, count: arr.length,
+        description: `${arr.length} ${meta.label} need attention`,
+        target: { ...oldest.target, entityId: meta.groupEntity },
+      });
+    } else out.push(...arr);
+  }
+  return out;
+}
+
+// Supervisor (#4): a fixed "what must I deal with on site" order, not raw priority.
+const SUPERVISOR_ORDER = {
+  "hazard.high_risk_open": 0, "hazard.open": 0,
+  "shift.open_too_long": 1,
+  "dailylog.outstanding": 2,
+  "task.overdue": 3,
+  "issue.open": 4,
+  "inspection.due_soon": 5,
+  "task.material_not_on_site": 6, "procurement.order_by_breach": 6, "procurement.delivery_late": 6,
+};
+
 // ── Compute the queue for a user (compute-on-read) ─────────────────────────────
 export async function computeActionItems({ role, userId }) {
   const effective = role === "office" ? "builder" : role;
   const preds = REGISTRY.filter(p => p.role === effective);
   const results = await Promise.all(preds.map(p => p.query({ role: effective, userId, now: Date.now() }).catch(() => [])));
-  return sortItems(results.flat());
+  return sortItems(groupItems(results.flat()), effective);
 }
 
-export function sortItems(items) {
+export function sortItems(items, role) {
+  if (role === "supervisor") {
+    const rank = (it) => (it.type in SUPERVISOR_ORDER ? SUPERVISOR_ORDER[it.type] : 99);
+    return [...items].sort((a, b) => (rank(a) - rank(b)) || ((b.ageHours || 0) - (a.ageHours || 0)));
+  }
   return [...items].sort((a, b) => (PRIO[a.priority] - PRIO[b.priority]) || ((b.ageHours || 0) - (a.ageHours || 0)));
 }

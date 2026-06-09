@@ -26,9 +26,10 @@ function ageLabel(h) {
 }
 
 export default function ActionQueue({ items, title, onOpen, max, allClear = "Nothing needs your attention" }) {
+  const [expanded, setExpanded] = useState(false);
   if (items == null) return null; // still loading — render nothing
   const high = items.filter(i => i.priority === "high").length;
-  const shown = max ? items.slice(0, max) : items;
+  const shown = (max && !expanded) ? items.slice(0, max) : items;
 
   return (
     <div style={{ background: "#121212", border: "1px solid #232323", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
@@ -55,12 +56,18 @@ export default function ActionQueue({ items, title, onOpen, max, allClear = "Not
                   <div style={{ fontSize: 14, color: "#f0f0f0", lineHeight: 1.3 }}>{it.description}</div>
                   <div style={{ fontSize: 12, color: "#9a9a9a", marginTop: 2 }}>{it.projectName}{it.ageHours != null ? ` · ${ageLabel(it.ageHours)}` : ""}</div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", color: p.c, background: p.bg, padding: "3px 9px", borderRadius: 5, flexShrink: 0 }}>{p.label}</span>
+                {it.grouped
+                  ? <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "Barlow Condensed, sans-serif", color: "#0c0c0c", background: p.c, padding: "3px 9px", borderRadius: 5, flexShrink: 0 }}>{it.count}</span>
+                  : <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", color: p.c, background: p.bg, padding: "3px 9px", borderRadius: 5, flexShrink: 0 }}>{p.label}</span>}
                 <span style={{ color: "#666", fontSize: 18, flexShrink: 0 }}>›</span>
               </button>
             );
           })}
-          {max && items.length > max && <div style={{ fontSize: 11, color: "#555", textAlign: "center", paddingTop: 4 }}>+{items.length - max} more</div>}
+          {max && items.length > max && (
+            <button onClick={() => setExpanded(e => !e)} style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1px solid #2a2a2a", background: "transparent", color: "#e07b39", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, letterSpacing: 0.3, textTransform: "uppercase", cursor: "pointer", marginTop: 2 }}>
+              {expanded ? "Show less" : `View all ${items.length} actions`}
+            </button>
+          )}
         </div>
       )}
     </div>

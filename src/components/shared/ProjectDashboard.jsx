@@ -137,7 +137,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
         />
       )}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
-        {isSupervisor && <ActionQueue items={actionItems} title="My actions today" max={10} onOpen={onAction} allClear="You're all caught up" />}
+        {isSupervisor && <ActionQueue items={actionItems} title="My actions today" max={5} onOpen={onAction} allClear="You're all caught up" />}
         {stats ? (
           <StatRow stats={stats} onNav={openScreen} />
         ) : (
