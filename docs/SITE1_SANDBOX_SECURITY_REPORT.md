@@ -108,14 +108,32 @@ fastest, most direct proof (or disproof) of isolation. They are the rollout gate
 
 ## 5. Results (filled by running the suites)
 
-### 5.1 Multi-tenant isolation — `npm run sandbox:test`
-> Expected today: PASS for `tasks`, FAIL for the ~28 still-global tables. The FAIL list is the
-> Phase-3-rollout checklist.
+### 5.1 Multi-tenant isolation — BASELINE (2026-06-10, before Phase 3 rollout)
+Run as real seeded users against the live project (5 orgs × 20 users). **14 fail / 3 pass.**
+Cross-org leakage confirmed (R1) — org A reached org B on:
+- **list leakage:** tasks, daily_logs, hazards, variations, purchase_orders, projects (all 6)
+- **direct id read:** tasks, daily_logs, variations, purchase_orders
+- **write:** UPDATE another org's task
+- **search:** found another org's project by name AND task by title
+- **notifications:** worker saw another org's notification recipients
 
-_(pending first run)_
+Passed (already isolated by chance of existing policy): direct-id read of hazards + projects,
+DELETE of another org's hazard. (2 id-read tests were flaky between runs — transient empty
+reads under rapid fire; will be deterministic once the restrictive gate is applied.)
 
-### 5.2 Role-based access — same command
-_(pending first run)_
+> Note: `tasks` leaks here because the Phase 3 PILOT was rolled back during the earlier
+> "disappear" debugging and never re-applied. The full rollout migration supersedes it.
+
+### 5.2 Role-based access — BASELINE (2026-06-10)
+**4 fail / 3 pass.** Within a single org, the existing project-membership/global-role RLS
+over-exposes commercial data:
+- ❌ **client can read `purchase_orders`** — should be internal-only
+- ❌ **field staff (worker) can read `purchase_orders` and `variations`** — commercial (R6)
+- ❌ **subcontractor sees ALL purchase orders (14), not only their own** — should be scoped to `subbie_id = self`
+- ✅ client correctly blocked from `tasks`, `hazards`, `variations`
+
+These are NOT fixed by the Phase 3 org gate (which only adds tenant isolation). They require
+role/column-level RLS — see R5/R6 — and are now empirically confirmed, not just suspected.
 
 ### 5.3 Load — `npm run load:smoke|100|250|500|1000`
 k6 against Supabase REST/Auth as seeded sandbox users (~85% read / 15% write). Thresholds:
