@@ -20,6 +20,7 @@ const TZ = "Australia/Melbourne";
 export const CONFIG = {
   signoffOverdueDays: 3,
   dailyLogCutoffHour: 18,
+  labourCutoffHour: 17,   // end-of-day labour cutoff (Tier 2 #7) — Melbourne
   shiftMaxHours: 10,
 };
 
@@ -92,6 +93,41 @@ export function isTaskOverdue(dueDate, dueTime, status, now = Date.now()) {
   return !!iso && new Date(iso).getTime() < now;
 }
 
+// ── Tier 2 #7 — end-of-day labour (pure, testable) ─────────────────────────────
+// UTC instant of the Melbourne labour cutoff (default 17:00) on calendar day `dateStr`.
+export function melbourneCutoffUtc(dateStr, cutoffHour = CONFIG.labourCutoffHour) {
+  return new Date(melbourneDayStartUtc(dateStr).getTime() + cutoffHour * 3600000);
+}
+// Hours an unresolved OPEN shift is counted for: clock-in → cutoff (Tier 2 #7
+// "count to cutoff and flag"). Never negative (cutoff before clock-in → 0).
+export function openShiftHoursToCutoff(clockInIso, cutoffIso) {
+  if (!clockInIso || !cutoffIso) return 0;
+  const ms = new Date(cutoffIso).getTime() - new Date(clockInIso).getTime();
+  return ms > 0 ? Math.round((ms / 3600000) * 100) / 100 : 0;
+}
+// Has an open shift passed its day's Melbourne cutoff? (Prompts the supervisor to
+// confirm OT vs forgotten sign-out — in addition to the >shiftMaxHours rule.)
+export function isShiftPastCutoff(clockInIso, now = Date.now(), cutoffHour = CONFIG.labourCutoffHour) {
+  if (!clockInIso) return false;
+  const workDate = melbourneTodayStr(new Date(clockInIso));
+  return now >= melbourneCutoffUtc(workDate, cutoffHour).getTime();
+}
+// Condense completed-but-unapproved shifts into one group per (project, day) for the
+// single "Approve today's labour" action item (Tier 2 #7 — never per-punch). Pure.
+export function groupPendingLabour(timesheets) {
+  const groups = {};
+  for (const t of timesheets || []) {
+    if (!t.clock_out || t.status === "approved") continue; // only completed + not yet approved
+    const date = String(t.work_date || t.clock_in || "").slice(0, 10);
+    if (!date) continue;
+    const key = `${t.project_id}:${date}`;
+    const g = groups[key] || (groups[key] = { key, projectId: t.project_id, date, project: t.project, count: 0, hours: 0 });
+    g.count += 1;
+    g.hours += Number(t.hours_worked) || 0;
+  }
+  return Object.values(groups).map(g => ({ ...g, hours: Math.round(g.hours * 10) / 10 }));
+}
+
 // ── ActionItem builder ─────────────────────────────────────────────────────────
 const PRIO = { high: 0, medium: 1, low: 2 };
 function mk({ type, priority, role, project, projectId, since, dueAt, description, target, userId }) {
@@ -161,12 +197,16 @@ export const REGISTRY = [
       target: { kind: "variation", projectId: v.project_id, entityId: v.id },
     }));
   }},
-  { key: "timesheet.pending", role: "builder", priority: "high", async query() {
-    const { data } = await supabase.from("timesheets").select(`id, project_id, status, clock_out, created_at, worker:profiles!timesheets_worker_id_fkey(full_name), ${PROJ}`).eq("status", "pending");
-    return (data || []).map(t => mk({
-      type: "timesheet.pending", priority: "high", role: "builder", project: t.project, since: t.clock_out || t.created_at,
-      description: `Timesheet to approve — ${t.worker?.full_name || "worker"}`,
-      target: { kind: "timesheet", projectId: t.project_id, entityId: t.id },
+  // Tier 2 #7: ONE item per project per day ("Approve today's labour"), never per punch.
+  // Derived — resolves when the day's completed shifts are all approved.
+  { key: "labour.approve_day", role: "builder", priority: "high", async query() {
+    const { data } = await supabase.from("timesheets").select(`id, project_id, work_date, clock_in, clock_out, hours_worked, status, ${PROJ}`).eq("status", "pending").not("clock_out", "is", null);
+    const today = melbourneTodayStr();
+    return groupPendingLabour(data || []).map(g => mk({
+      type: "labour.approve_day", priority: "high", role: "builder", project: g.project,
+      since: melbourneCutoffUtc(g.date).toISOString(),
+      description: `Approve ${g.date === today ? "today's" : g.date} labour — ${g.count} shift${g.count > 1 ? "s" : ""}, ${g.hours}h`,
+      target: { kind: "timesheet", projectId: g.projectId, entityId: g.key },
     }));
   }},
   { key: "po.awaiting_acceptance", role: "builder", priority: "medium", async query() {
@@ -271,13 +311,21 @@ export const REGISTRY = [
       target: { kind: "issue", projectId: i.project_id, entityId: i.id },
     }));
   }},
+  // Open shift flagged when it runs >shiftMaxHours OR is still open past the day's
+  // Melbourne cutoff (Tier 2 #7 — prompt the supervisor: OT or forgotten sign-out?).
   { key: "shift.open_too_long", role: "supervisor", priority: "high", async query() {
     const { data } = await supabase.from("timesheets").select(`id, project_id, clock_in, clock_out, worker:profiles!timesheets_worker_id_fkey(full_name), ${PROJ}`).is("clock_out", null);
-    return (data || []).filter(t => isShiftTooLong(t.clock_in)).map(t => mk({
-      type: "shift.open_too_long", priority: "high", role: "supervisor", project: t.project, since: t.clock_in,
-      description: `${t.worker?.full_name || "Worker"} on site ${Math.floor(hoursSince(t.clock_in))}h — still clocked in`,
-      target: { kind: "attendance", projectId: t.project_id, entityId: t.id },
-    }));
+    return (data || []).filter(t => isShiftTooLong(t.clock_in) || isShiftPastCutoff(t.clock_in)).map(t => {
+      const name = t.worker?.full_name || "Worker";
+      const tooLong = isShiftTooLong(t.clock_in);
+      return mk({
+        type: "shift.open_too_long", priority: "high", role: "supervisor", project: t.project, since: t.clock_in,
+        description: tooLong
+          ? `${name} on site ${Math.floor(hoursSince(t.clock_in))}h — still clocked in`
+          : `${name} still clocked in after ${CONFIG.labourCutoffHour}:00 — confirm overtime or sign-out`,
+        target: { kind: "attendance", projectId: t.project_id, entityId: t.id },
+      });
+    });
   }},
 
   // ---- Timeline Engine: site execution (GUARDED) ----

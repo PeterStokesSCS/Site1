@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hoursSince, isSignoffOverdue, isShiftTooLong, isTaskOverdue, dueAtIso,
   sortItems, melbourneTodayStr, melbourneDayStartUtc, melbourneDayRangeUtc, CONFIG,
+  melbourneCutoffUtc, openShiftHoursToCutoff, isShiftPastCutoff, groupPendingLabour,
 } from "./actionQueue";
 
 const HOURS = (h) => new Date(Date.now() - h * 3600000).toISOString();
@@ -72,6 +73,34 @@ describe("melbourne time", () => {
   // not the UTC date — the bug this change fixes. 2025-06-09T20:00Z is 10 Jun 06:00 in Melbourne.
   it("reports the Melbourne calendar day of an instant, not UTC", () => {
     expect(melbourneTodayStr(new Date("2025-06-09T20:00:00Z"))).toBe("2025-06-10");
+  });
+});
+
+describe("Tier 2 #7 — end-of-day labour (pure)", () => {
+  it("melbourneCutoffUtc = 17:00 Melbourne (AEST winter -> 07:00 UTC)", () => {
+    expect(melbourneCutoffUtc("2025-06-10").toISOString()).toBe("2025-06-10T07:00:00.000Z");
+  });
+  it("openShiftHoursToCutoff counts clock-in -> cutoff, never negative", () => {
+    expect(openShiftHoursToCutoff("2025-06-10T01:00:00Z", "2025-06-10T07:00:00Z")).toBe(6);
+    expect(openShiftHoursToCutoff("2025-06-10T09:00:00Z", "2025-06-10T07:00:00Z")).toBe(0);
+  });
+  it("isShiftPastCutoff flips once the day's 17:00 Melbourne has passed", () => {
+    const clockIn = "2025-06-10T00:00:00Z"; // 10:00 Melbourne; cutoff = 07:00 UTC
+    expect(isShiftPastCutoff(clockIn, Date.parse("2025-06-10T08:00:00Z"))).toBe(true);
+    expect(isShiftPastCutoff(clockIn, Date.parse("2025-06-10T06:00:00Z"))).toBe(false);
+  });
+  it("groupPendingLabour = one group per project/day, completed+unapproved only", () => {
+    const ts = [
+      { project_id: "p1", work_date: "2025-06-10", clock_out: "x", hours_worked: 8,   status: "pending" },
+      { project_id: "p1", work_date: "2025-06-10", clock_out: "x", hours_worked: 6.5, status: "pending" },
+      { project_id: "p1", work_date: "2025-06-10", clock_out: null, hours_worked: 0,  status: "pending" },  // open -> ignored
+      { project_id: "p1", work_date: "2025-06-10", clock_out: "x", hours_worked: 7,   status: "approved" }, // approved -> ignored
+      { project_id: "p2", work_date: "2025-06-10", clock_out: "x", hours_worked: 4,   status: "pending" },
+    ];
+    const g = groupPendingLabour(ts);
+    expect(g.length).toBe(2);
+    expect(g.find(x => x.projectId === "p1").count).toBe(2);
+    expect(g.find(x => x.projectId === "p1").hours).toBe(14.5);
   });
 });
 
