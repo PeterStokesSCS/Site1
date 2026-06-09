@@ -10,6 +10,7 @@ import { TILES } from "../../lib/theme";
 import { getProjects, getMyTasksToday, updateTaskStatus, createHazard, getDailyLogs, getDocuments } from "../../lib/db";
 import { clockIn, clockOut, getTodayClockIn } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
+import { signOut } from "../../lib/auth";
 import { enqueue } from "../../lib/webhook";
 import { useOfflineQueue } from "../../hooks/useOfflineQueue";
 import { HAZARD_CATEGORIES } from "../../data/mockData";
@@ -283,7 +284,7 @@ export default function WorkerApp({ user }) {
         <EmptyState icon="🏗" title="No projects assigned" subtitle="Contact your supervisor to be assigned to a project" />
       </div>
       <div style={{ padding: "16px", borderTop: "1px solid #1e1e1e" }}>
-        <button onClick={() => supabase.auth.signOut()} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>SIGN OUT</button>
+        <button onClick={() => signOut()} style={{ width: "100%", padding: "12px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>SIGN OUT</button>
       </div>
     </div>
   );

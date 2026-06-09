@@ -12,6 +12,7 @@ import { EmptyState, Skeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
 import { getProjects, getDocuments, createSubbieRequest, getMySubbieRequests, markSubbieRequestsViewed, getMyPurchaseOrders, updatePurchaseOrder, getPoMessages, sendPoMessage } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
+import { signOut } from "../../lib/auth";
 import { post, enqueue } from "../../lib/webhook";
 import { useOfflineQueue } from "../../hooks/useOfflineQueue";
 
@@ -467,7 +468,7 @@ export default function SubcontractorApp({ user }) {
       </div>
       <div style={{ flex: 1 }}><EmptyState icon="🏗" title="No site assigned" subtitle="Contact the site supervisor to be assigned to a project" /></div>
       <div style={{ padding: 16, borderTop: "1px solid #1e1e1e" }}>
-        <button onClick={() => supabase.auth.signOut()} style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>SIGN OUT</button>
+        <button onClick={() => signOut()} style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>SIGN OUT</button>
       </div>
     </div>
   );

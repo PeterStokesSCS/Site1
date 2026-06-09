@@ -3,6 +3,7 @@ import { getProjects, createProject, updateProject, getAllTimesheets, approveTim
 import { VIC_MILESTONES } from "../../lib/timeline";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
+import { signOut } from "../../lib/auth";
 import { HEALTH } from "../../lib/theme";
 import { Skeleton, CardSkeleton, EmptyState } from "../shared/LoadingScreen";
 import ProjectDashboard from "../shared/ProjectDashboard";
@@ -744,14 +745,14 @@ export default function BuilderApp({ user }) {
             <div style={{ fontSize: 13, fontWeight: 600, color: "#ccc" }}>{user.name}</div>
             <div style={{ fontSize: 11, color: "#555" }}>Builder / Admin</div>
           </div>
-          <button onClick={() => supabase.auth.signOut()} style={{ marginLeft: "auto", background: "none", border: "none", color: "#444", fontSize: 12, cursor: "pointer" }} title="Sign out">⏻</button>
+          <button onClick={() => signOut()} style={{ marginLeft: "auto", background: "none", border: "none", color: "#444", fontSize: 12, cursor: "pointer" }} title="Sign out">⏻</button>
         </div>
       </aside>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header style={{ background: "#111", borderBottom: "1px solid #1e1e1e", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }} className="builder-topbar">
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
-          <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer" }}>Sign out</button>
+          <button onClick={() => signOut()} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer" }}>Sign out</button>
         </header>
         <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>{renderTab()}</main>
         <nav style={{ background: "#111", borderTop: "1px solid #1e1e1e", display: "flex" }} className="builder-bottomnav">

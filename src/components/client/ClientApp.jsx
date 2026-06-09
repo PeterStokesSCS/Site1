@@ -7,6 +7,7 @@ import { EmptyState, Skeleton, CardSkeleton } from "../shared/LoadingScreen";
 import { TILES } from "../../lib/theme";
 import { getProjectsByUser, getProjects, getMilestones, getDocuments, getVariations, getClientPhotos, updateVariation } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
+import { signOut } from "../../lib/auth";
 import { post } from "../../lib/webhook";
 import { SignedImage, SignedLink } from "../shared/SignedMedia";
 
@@ -420,7 +421,7 @@ export default function ClientApp({ user }) {
       </div>
       <div style={{ flex: 1 }}><EmptyState icon="🏗" title="No project linked yet" subtitle="Your builder will connect your account to your project shortly" /></div>
       <div style={{ padding: 16, borderTop: "1px solid #1e1e1e" }}>
-        <button onClick={() => supabase.auth.signOut()} style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>SIGN OUT</button>
+        <button onClick={() => signOut()} style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14, cursor: "pointer" }}>SIGN OUT</button>
       </div>
     </div>
   );

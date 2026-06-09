@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { logAudit } from "../../lib/db";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -16,10 +17,13 @@ export default function LoginScreen() {
     setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      logAudit("login_failed", { entityType: "auth", detail: { email } });
       setError(error.message === "Invalid login credentials"
         ? "Incorrect email or password."
         : error.message
       );
+    } else {
+      logAudit("login", { entityType: "auth" });
     }
     setLoading(false);
   };

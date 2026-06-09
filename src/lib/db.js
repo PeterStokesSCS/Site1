@@ -1,6 +1,34 @@
 import { supabase } from "./supabase";
 import { melbourneTodayStr, melbourneDayRangeUtc } from "./actionQueue";
 
+// ── Audit log (R3) ───────────────────────────────────────────────────────────────
+// Fire-and-forget security/event log via the record_audit() SECURITY DEFINER RPC (see
+// supabase_migration_audit_log.sql). It stamps the caller's id + role server-side; we only
+// pass context. Audit must NEVER block or fail a user action, so every call is swallowed.
+let _orgIdCache = null;
+export async function myOrgId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return null;
+  if (_orgIdCache && _orgIdCache.uid === uid) return _orgIdCache.orgId;
+  const { data } = await supabase.from("org_members").select("org_id, role").eq("user_id", uid);
+  if (!data?.length) return null;
+  const admin = data.find((m) => m.role === "builder" || m.role === "office");
+  const orgId = (admin || data[0]).org_id;
+  _orgIdCache = { uid, orgId };
+  return orgId;
+}
+export async function logAudit(action, opts = {}) {
+  try {
+    const { orgId, entityType = null, entityId = null, detail = {}, success = true } = opts;
+    const p_org = orgId ?? (await myOrgId());
+    await supabase.rpc("record_audit", {
+      p_org, p_entity_type: entityType, p_entity_id: entityId,
+      p_action: action, p_success: success, p_detail: detail,
+    });
+  } catch { /* audit must never break the app */ }
+}
+
 // ── Projects ───────────────────────────────────────────────────────────────────
 export async function getProjects() {
   const { data, error } = await supabase
@@ -96,6 +124,7 @@ export async function createTask(payload) {
     .insert(payload)
     .select()
     .single();
+  if (!error) logAudit("create", { orgId: data?.org_id, entityType: "task", entityId: data?.id });
   return { data, error };
 }
 
@@ -115,6 +144,7 @@ export async function createHazard(payload) {
     .insert(payload)
     .select()
     .single();
+  if (!error) logAudit("create", { orgId: data?.org_id, entityType: "hazard", entityId: data?.id });
   return { data, error };
 }
 
@@ -245,6 +275,7 @@ export async function createDailyLog(payload) {
     .insert(payload)
     .select()
     .single();
+  if (!error) logAudit("create", { orgId: data?.org_id, entityType: "daily_log", entityId: data?.id });
   return { data, error };
 }
 
@@ -283,6 +314,7 @@ export async function createVariation(payload) {
     .insert(payload)
     .select()
     .single();
+  if (!error) logAudit("create", { orgId: data?.org_id, entityType: "variation", entityId: data?.id });
   return { data, error };
 }
 
@@ -304,11 +336,18 @@ export async function updateVariationStatus(id, status, approverId) {
 // Generic variation update (used for issuing to client + capturing digital sign-off).
 export async function updateVariation(id, patch) {
   const { data, error } = await supabase.from("variations").update(patch).eq("id", id).select().single();
+  if (!error) {
+    const action = patch?.status === "sent" ? "variation_sent"
+      : (patch?.status === "signed" || patch?.status === "approved") ? "variation_signed"
+      : "update";
+    logAudit(action, { orgId: data?.org_id, entityType: "variation", entityId: id, detail: patch?.status ? { status: patch.status } : {} });
+  }
   return { data, error };
 }
 
 export async function deleteVariation(id) {
   const { error } = await supabase.from("variations").delete().eq("id", id);
+  if (!error) logAudit("delete", { entityType: "variation", entityId: id });
   return { error };
 }
 
@@ -436,6 +475,7 @@ export async function getPhotosForRecord(recordType, recordId) {
 
 export async function deletePhoto(id) {
   const { error } = await supabase.from("project_photos").delete().eq("id", id);
+  if (!error) logAudit("delete", { entityType: "project_photo", entityId: id });
   return { error };
 }
 
@@ -458,6 +498,7 @@ export async function requestClientVisibility(table, id, userId) {
 }
 export async function approveClientVisibility(table, id) {
   const { error } = await supabase.from(table).update({ visibility_status: "approved", client_visible: true }).eq("id", id);
+  if (!error) logAudit("visibility_approved", { entityType: table, entityId: id });
   return { error };
 }
 export async function rejectClientVisibility(table, id) {
@@ -645,6 +686,7 @@ export async function markSubbieRequestsViewed(userId) {
 // ── Purchase orders (issued to subbies on approved variations) ──────────────────
 export async function createPurchaseOrder(payload) {
   const { data, error } = await supabase.from("purchase_orders").insert(payload).select().single();
+  if (!error) logAudit("po_issued", { orgId: data?.org_id, entityType: "purchase_order", entityId: data?.id });
   return { data, error };
 }
 
@@ -701,6 +743,8 @@ export async function updateProfile(id, payload) {
     .eq("id", id)
     .select()
     .single();
+  if (!error && payload?.role !== undefined)
+    logAudit("role_changed", { entityType: "profile", entityId: id, detail: { role: payload.role } });
   return { data, error };
 }
 
@@ -716,6 +760,7 @@ export async function addProjectMember(projectId, userId, role) {
     .insert({ project_id: projectId, user_id: userId, role: role || null })
     .select()
     .single();
+  if (!error) logAudit("assignment_changed", { orgId: data?.org_id, entityType: "project_member", entityId: data?.id, detail: { project_id: projectId, user_id: userId, op: "add" } });
   return { data, error };
 }
 
@@ -725,6 +770,7 @@ export async function removeProjectMember(projectId, userId) {
     .delete()
     .eq("project_id", projectId)
     .eq("user_id", userId);
+  if (!error) logAudit("assignment_changed", { entityType: "project_member", detail: { project_id: projectId, user_id: userId, op: "remove" } });
   return { error };
 }
 

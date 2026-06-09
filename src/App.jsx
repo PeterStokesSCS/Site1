@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./lib/supabase";
+import { signOut } from "./lib/auth";
 import LoginScreen      from "./components/auth/LoginScreen";
 import BuilderApp       from "./components/builder/BuilderApp";
 import SupervisorApp    from "./components/supervisor/SupervisorApp";
@@ -101,7 +102,7 @@ export default function App() {
         <div style={{ minHeight: "100dvh", background: "#0c0c0c", color: "#f0f0f0", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16, fontFamily: "DM Sans, sans-serif", padding: 20 }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 22, color: "#555" }}>No role assigned</div>
           <div style={{ fontSize: 14, color: "#444", textAlign: "center" }}>Ask your administrator to assign a role to your account.</div>
-          <button onClick={() => supabase.auth.signOut()} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14 }}>SIGN OUT</button>
+          <button onClick={() => signOut()} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #333", background: "transparent", color: "#888", cursor: "pointer", fontFamily: "Barlow Condensed, sans-serif", fontSize: 14 }}>SIGN OUT</button>
         </div>
       );
   }

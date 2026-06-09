@@ -6,6 +6,7 @@ import {
   getAllDocuments,
 } from "../../lib/db";
 import { supabase } from "../../lib/supabase";
+import { signOut } from "../../lib/auth";
 import { post } from "../../lib/webhook";
 import { EmptyState, CardSkeleton } from "../shared/LoadingScreen";
 
@@ -265,14 +266,14 @@ export default function OfficeAdminApp({ user }) {
         <div style={{ padding: "12px 16px", borderTop: "1px solid #1e1e1e", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#e07b39", color: "#0c0c0c", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{user.avatar}</div>
           <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: "#ccc" }}>{user.name}</div><div style={{ fontSize: 11, color: "#555" }}>Office Admin</div></div>
-          <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#444", fontSize: 12, cursor: "pointer" }} title="Sign out">⏻</button>
+          <button onClick={() => signOut()} style={{ background: "none", border: "none", color: "#444", fontSize: 12, cursor: "pointer" }} title="Sign out">⏻</button>
         </div>
       </aside>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header style={{ background: "#111", borderBottom: "1px solid #1e1e1e", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }} className="office-topbar">
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 18, fontWeight: 700 }}><span style={{ color: "#e07b39" }}>SITE</span>1</div>
-          <button onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer" }}>Sign out</button>
+          <button onClick={() => signOut()} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer" }}>Sign out</button>
         </header>
         <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
           <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 26, fontWeight: 700, color: "#f0f0f0", marginBottom: 20 }}>{TABS.find(t => t.id === tab)?.label.toUpperCase()}</div>
