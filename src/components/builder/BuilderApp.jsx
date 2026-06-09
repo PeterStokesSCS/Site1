@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems } from "../../lib/db";
+import { getProjects, createProject, updateProject, getAllTimesheets, approveTimesheet, getProfiles, updateProfile, getAllProjectMembers, addProjectMember, removeProjectMember, seedProjectMilestones, getAllCommercialItems, getAllVariations } from "../../lib/db";
 import { VIC_MILESTONES } from "../../lib/timeline";
 import { geocodeAddress } from "../../lib/geocode";
 import { supabase } from "../../lib/supabase";
@@ -12,12 +12,13 @@ import ActionQueue, { useActionItems } from "../shared/ActionQueue";
 import { KIND_TO_PROJECT_SCREEN } from "../../lib/actionQueue";
 import TeamMemberDetail from "./TeamMemberDetail";
 
+// Company-level spine (5 tabs). "Commercial" reads distinctly from the in-project
+// Commercial → Variations; Safety lives inside each project's dashboard, not here.
 const TABS = [
   { id: "dashboard",  label: "Dashboard",  icon: "⊞" },
   { id: "projects",   label: "Projects",   icon: "🏗" },
   { id: "labour",     label: "Labour",     icon: "👷" },
-  { id: "variations", label: "Variations", icon: "±" },
-  { id: "safety",     label: "Safety",     icon: "⚠️" },
+  { id: "commercial", label: "Commercial", icon: "💰" },
   { id: "team",       label: "Team",       icon: "👤" },
 ];
 
@@ -408,6 +409,61 @@ function TeamTab() {
   );
 }
 
+// ── Company Commercial (all-projects variations roll-up) ───────────────────────
+const VAR_STATUS = {
+  draft:              { label: "Draft",             color: "#888",    bg: "#1a1a1a" },
+  pending:            { label: "Pending",           color: "#f59e0b", bg: "#251d00" },
+  approved_for_issue: { label: "Ready to Send",     color: "#a855f7", bg: "#1a0c33" },
+  sent:               { label: "Awaiting Sign-off", color: "#0ea5e9", bg: "#0c2233" },
+  approved:           { label: "Approved",          color: "#22c55e", bg: "#06200e" },
+  rejected:           { label: "Rejected",          color: "#ef4444", bg: "#2a0c0c" },
+  superseded:         { label: "Superseded",        color: "#888",    bg: "#1a1a1a" },
+};
+const cmoney = (n) => (n || n === 0) ? `$${Number(n).toLocaleString()}` : "—";
+
+function CompanyCommercialTab({ projects, onOpenVariation }) {
+  const [vars, setVars] = useState(null);
+  const [filter, setFilter] = useState("all");
+  useEffect(() => { getAllVariations().then(({ data }) => setVars(data || [])); }, []);
+
+  const FILTERS = [["all", "All"], ["sent", "Awaiting"], ["approved_for_issue", "Ready"], ["draft", "Draft"], ["approved", "Approved"], ["rejected", "Rejected"]];
+  const projById = Object.fromEntries(projects.map(p => [p.id, p]));
+  const shown = vars === null ? [] : (filter === "all" ? vars : vars.filter(v => v.status === filter));
+  const approvedTotal = (vars || []).filter(v => v.status === "approved").reduce((s, v) => s + (Number(v.total_inc_gst ?? v.amount) || 0), 0);
+
+  return (
+    <div>
+      <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f0f0", marginBottom: 4 }}>COMMERCIAL</div>
+      <div style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>Variations across all projects · approved total <span style={{ color: "#22c55e", fontFamily: "Barlow Condensed, sans-serif", fontSize: 16 }}>{cmoney(approvedTotal)}</span></div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+        {FILTERS.map(([k, l]) => {
+          const n = k === "all" ? (vars || []).length : (vars || []).filter(v => v.status === k).length;
+          return <button key={k} onClick={() => setFilter(k)} style={{ padding: "6px 13px", borderRadius: 16, border: `1px solid ${filter === k ? "#e07b39" : "#2a2a2a"}`, background: filter === k ? "#2a1800" : "transparent", color: filter === k ? "#e07b39" : "#666", fontFamily: "Barlow Condensed, sans-serif", fontSize: 13, cursor: "pointer" }}>{l}{n ? ` ${n}` : ""}</button>;
+        })}
+      </div>
+      {vars === null ? [1, 2, 3].map(i => <CardSkeleton key={i} />)
+        : shown.length === 0 ? <EmptyState icon="±" title="No variations" subtitle="Variations raised on any project roll up here" />
+        : shown.map(v => {
+          const st = VAR_STATUS[v.status] || VAR_STATUS.draft;
+          const proj = projById[v.project_id] || v.project;
+          return (
+            <div key={v.id} onClick={() => proj && onOpenVariation(proj, v.id)} style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 10, padding: "14px", marginBottom: 8, cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: "#777", fontFamily: "Barlow Condensed, sans-serif" }}>{v.project?.job_number || proj?.job_number || ""} · {v.ref || ""}{v.revision_label ? ` ${v.revision_label}` : ""}</div>
+                <div style={{ fontSize: 14, color: "#ddd", marginTop: 2 }}>{v.title}</div>
+                <div style={{ fontSize: 12, color: "#777", marginTop: 2 }}>{v.project?.street || proj?.street || ""}</div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 17, color: "#e07b39" }}>{cmoney(v.total_inc_gst ?? v.amount)}</div>
+                <div style={{ marginTop: 4 }}><span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif", color: st.color, background: st.bg, border: `1px solid ${st.color}55`, padding: "3px 10px", borderRadius: 6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{st.label}</span></div>
+              </div>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
 // ── Builder shell ──────────────────────────────────────────────────────────────
 export default function BuilderApp({ user }) {
   const [tab, setTab] = useState("dashboard");
@@ -439,6 +495,9 @@ export default function BuilderApp({ user }) {
 
   // Dashboard tiles navigate to a tab, optionally pre-filtering the Projects list
   const navigate = (toTab, filter = null) => { setProjectFilter(filter); setTab(toTab); };
+
+  // From the company Commercial tab: open a variation inside its project (reuses the deep-link).
+  const openVariationInProject = (proj, varId) => { setInitialScreen("variations"); setFocusId(varId || null); setFocusKind(null); setOpenProject(proj); };
 
   const handleApprove = async (id) => {
     await approveTimesheet(id, user.id);
@@ -479,6 +538,7 @@ export default function BuilderApp({ user }) {
       case "dashboard":  return <DashboardTab projects={projects} timesheets={timesheets} onNavigate={navigate} onOpenProject={openProjectClean} user={user} onOpenAction={openAction} />;
       case "projects":   return <ProjectsTab projects={projects} initialFilter={projectFilter} onProjectCreated={p => setProjects(prev => [p, ...prev])} onOpenProject={openProjectClean} />;
       case "labour":     return <LabourHub timesheets={timesheets} projects={projects} onApprove={handleApprove} user={user} />;
+      case "commercial": return <CompanyCommercialTab projects={projects} onOpenVariation={openVariationInProject} />;
       case "team":       return <TeamTab />;
       default: return <div style={{ color: "#444", padding: "40px 0", textAlign: "center", fontFamily: "Barlow Condensed, sans-serif", fontSize: 18 }}>Coming in Stage 3</div>;
     }
