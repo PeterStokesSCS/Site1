@@ -11,14 +11,17 @@ export default function BackHeader({ title, subtitle, onBack, rightSlot }) {
     }}>
       <button
         onClick={onBack}
+        aria-label="Back"
         style={{
-          background: "#1e1e1e",
-          border: "none",
-          borderRadius: 10,
+          background: "#242424",
+          border: "1px solid #3a3a3a",
+          borderRadius: 11,
           color: "#e07b39",
-          fontSize: 20,
-          width: 38,
-          height: 38,
+          fontSize: 30,
+          fontWeight: 700,
+          lineHeight: 1,
+          width: 44,
+          height: 44,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -44,7 +47,7 @@ export default function BackHeader({ title, subtitle, onBack, rightSlot }) {
         }}>
           {title}
         </div>
-        {subtitle && <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 12, color: "#8a8a8a", marginTop: 2 }}>{subtitle}</div>}
       </div>
       {rightSlot && <div style={{ flexShrink: 0 }}>{rightSlot}</div>}
     </div>

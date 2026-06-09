@@ -33,10 +33,10 @@ export default function ActionQueue({ items, title, onOpen, max, allClear = "Not
   return (
     <div style={{ background: "#121212", border: "1px solid #232323", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: items.length ? 10 : 4 }}>
-        <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 15, letterSpacing: 0.4, textTransform: "uppercase", color: "#e07b39" }}>{title}</span>
+        <span style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 17, letterSpacing: 0.4, textTransform: "uppercase", color: "#e07b39" }}>{title}</span>
         {items.length > 0 && (
-          <span style={{ fontSize: 11, color: "#888", fontFamily: "Barlow Condensed, sans-serif" }}>
-            {items.length} item{items.length > 1 ? "s" : ""}{high ? ` · ${high} high` : ""}
+          <span style={{ fontSize: 13, color: "#bbb", fontWeight: 600, fontFamily: "Barlow Condensed, sans-serif" }}>
+            {items.length} item{items.length > 1 ? "s" : ""}{high ? <span style={{ color: "#ef4444" }}> · {high} high</span> : ""}
           </span>
         )}
       </div>
@@ -50,12 +50,12 @@ export default function ActionQueue({ items, title, onOpen, max, allClear = "Not
             // Whole card is the tap target (mobile pattern) — no separate "Open" button.
             return (
               <button key={it.id} onClick={() => onOpen(it)} style={{ display: "flex", alignItems: "center", gap: 10, background: "#171717", border: "1px solid #222", borderRadius: 9, padding: "10px 11px", width: "100%", textAlign: "left", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
-                <div style={{ width: 5, alignSelf: "stretch", minHeight: 30, borderRadius: 3, background: p.c, flexShrink: 0 }} />
+                <div style={{ width: 6, alignSelf: "stretch", minHeight: 32, borderRadius: 3, background: p.c, flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: "#e8e8e8", lineHeight: 1.3 }}>{it.description}</div>
-                  <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{it.projectName}{it.ageHours != null ? ` · ${ageLabel(it.ageHours)}` : ""}</div>
+                  <div style={{ fontSize: 14, color: "#f0f0f0", lineHeight: 1.3 }}>{it.description}</div>
+                  <div style={{ fontSize: 12, color: "#9a9a9a", marginTop: 2 }}>{it.projectName}{it.ageHours != null ? ` · ${ageLabel(it.ageHours)}` : ""}</div>
                 </div>
-                <span style={{ fontSize: 9, fontFamily: "Barlow Condensed, sans-serif", color: p.c, background: p.bg, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>{p.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.5, fontFamily: "Barlow Condensed, sans-serif", color: p.c, background: p.bg, padding: "3px 9px", borderRadius: 5, flexShrink: 0 }}>{p.label}</span>
                 <span style={{ color: "#666", fontSize: 18, flexShrink: 0 }}>›</span>
               </button>
             );

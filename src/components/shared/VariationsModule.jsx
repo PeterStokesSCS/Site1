@@ -53,7 +53,7 @@ const STATUS = {
 };
 function StatusBadge({ status }) {
   const s = STATUS[status] || STATUS.draft;
-  return <span style={{ fontSize: 10, fontFamily: "Barlow Condensed, sans-serif", color: s.color, background: s.bg, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase", whiteSpace: "nowrap" }}>{s.label}</span>;
+  return <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, fontFamily: "Barlow Condensed, sans-serif", color: s.color, background: s.bg, border: `1px solid ${s.color}55`, padding: "3px 10px", borderRadius: 6, textTransform: "uppercase", whiteSpace: "nowrap" }}>{s.label}</span>;
 }
 function AttachLink({ url }) {
   if (!url) return null;
