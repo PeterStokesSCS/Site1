@@ -98,6 +98,19 @@ async function seedOrg(orgIdx) {
       po_number: `PO-${orgIdx}-${p}`, trade: "Carpentry", scope: `${SANDBOX_PREFIX}PO ${orgIdx}.${p}`,
       po_value: 30000, status: "issued",
     });
+    e.commercial_items = await ins("commercial_items", {
+      org_id: orgId, project_id: projectId, type: "quote", ref: `CI-${orgIdx}-${p}`,
+      title: `${SANDBOX_PREFIX}Commercial ${orgIdx}.${p}`, vendor: "Acme Supplies", amount: 8000,
+      status: "draft", created_by: builder,
+    });
+    e.eot_claims = await ins("eot_claims", {
+      org_id: orgId, project_id: projectId, title: `${SANDBOX_PREFIX}EOT ${orgIdx}.${p}`,
+      cause: "Weather", days_claimed: 3, status: "draft", created_by: builder,
+    });
+    e.procurement_items = await ins("procurement_items", {
+      org_id: orgId, project_id: projectId, item_name: `${SANDBOX_PREFIX}Procure ${orgIdx}.${p}`,
+      category: "Materials", status: "required", created_by: builder,
+    });
     e.notification_log = await ins("notification_log", {
       type: "email", entity_type: "variation", entity_id: e.variations, recipient: clientEmail,
     });

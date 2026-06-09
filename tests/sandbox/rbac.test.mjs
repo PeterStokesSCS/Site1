@@ -32,11 +32,21 @@ d("role-based access within one org (org A)", () => {
       });
   });
 
+  const COMMERCIAL = ["purchase_orders", "variations", "commercial_items", "eot_claims", "procurement_items"];
+
   describe("field staff must not see commercial records", () => {
-    for (const table of ["purchase_orders", "variations"])
+    for (const table of COMMERCIAL)
       it(`worker reads 0 ${table}`, async () => {
         const { data } = await worker.from(table).select("id");
         expect((data || []).length, `field worker read commercial ${table}`).toBe(0);
+      });
+  });
+
+  describe("client must not see commercial cost records", () => {
+    for (const table of ["commercial_items", "eot_claims", "procurement_items"])
+      it(`client reads 0 ${table}`, async () => {
+        const { data } = await client.from(table).select("id");
+        expect((data || []).length, `client read commercial ${table}`).toBe(0);
       });
   });
 

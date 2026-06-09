@@ -35,6 +35,9 @@ export const ENTITIES = [
   { table: "hazards",          orgScoped: true,  searchField: "title" },
   { table: "variations",       orgScoped: true,  searchField: "title" },
   { table: "purchase_orders",  orgScoped: true,  searchField: "scope" },
+  { table: "commercial_items", orgScoped: true,  searchField: "title" },
+  { table: "eot_claims",       orgScoped: true,  searchField: "title" },
+  { table: "procurement_items",orgScoped: true,  searchField: "item_name" },
   { table: "projects",         orgScoped: true,  searchField: "street" },
   { table: "notification_log", orgScoped: false, searchField: null },
 ];
