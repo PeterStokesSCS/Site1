@@ -104,7 +104,7 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
     switch (screen) {
       case "tasks":         return <TasksFeature {...props} focusId={focus} />;
       case "issues":        return <IssuesFeature {...props} focusId={focus} />;
-      case "attendance":    return <OnSiteFeature {...props} />;
+      case "attendance":    return <OnSiteFeature {...props} focusId={focus} />;
       case "safety":        return <SafetyScreen {...props} focusId={focus} />;
       case "dailyLog":      return <DailyLogScreen {...props} />;
       case "variations":    return <VariationsList {...props} focusId={focus} />;

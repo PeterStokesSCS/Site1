@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import BackHeader from "../shared/BackHeader";
 import { EmptyState } from "../shared/LoadingScreen";
 import { supabase } from "../../lib/supabase";
@@ -169,7 +169,7 @@ function AddVisitorForm({ projectId, userId, companies = [], onSave, onCancel })
 }
 
 // ── On Site Main ───────────────────────────────────────────────────────────────
-export default function OnSiteFeature({ project, user, onBack }) {
+export default function OnSiteFeature({ project, user, onBack, focusId }) {
   const [timesheets, setTimesheets] = useState([]);
   const [visits, setVisits] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -217,6 +217,18 @@ export default function OnSiteFeature({ project, user, onBack }) {
       setLoading(false);
     });
   }, [project.id, tick]);
+
+  // Deep-link: an attendance action item (open shift) targets a timesheet id —
+  // open that worker's detail once the muster has loaded (one-shot per focusId).
+  const focusedRef = useRef(null);
+  useEffect(() => {
+    if (!focusId || loading || focusedRef.current === focusId) return;
+    const ts = timesheets.find(t => t.id === focusId);
+    if (!ts) return;
+    const p = profiles.find(x => x.id === ts.worker_id);
+    setSelectedWorker({ id: ts.worker_id, full_name: p?.full_name || "Worker", role: p?.role || "worker" });
+    focusedRef.current = focusId;
+  }, [focusId, loading, timesheets, profiles]);
 
   if (selectedWorker) {
     const ts = timesheets.find(t => t.worker_id === selectedWorker.id);
