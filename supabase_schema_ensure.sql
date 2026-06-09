@@ -407,5 +407,42 @@ create policy "forecast_changes_write" on forecast_changes for all to authentica
   with check (project_id in (select project_id from project_members where user_id = auth.uid())
          or exists (select 1 from profiles where id = auth.uid() and role in ('builder','office')));
 
+-- ── MULTI-TENANT (Phase 0–1 structural; org_id NOT yet enforced by RLS) ──
+-- Tenant root + membership (many-to-many: subbies/clients may belong to multiple orgs).
+create table if not exists organisations (
+  id uuid primary key default gen_random_uuid(),
+  name text not null, abn text, status text default 'active', plan text default 'standard',
+  created_at timestamptz default now()
+);
+create table if not exists org_members (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organisations on delete cascade,
+  user_id uuid not null references profiles on delete cascade,
+  role text not null, created_at timestamptz default now(),
+  unique (org_id, user_id)
+);
+create index if not exists idx_org_members_user on org_members(user_id);
+-- Stable helper for tenant-first RLS (used from Phase 3 onward).
+create or replace function auth_org_ids() returns setof uuid
+  language sql stable security definer set search_path = public as $$
+  select org_id from org_members where user_id = auth.uid()
+$$;
+-- org_id on every tenant table (nullable here; NOT NULL + RLS re-key come in later phases).
+-- profiles (global identity) and profile_credentials (global to the person) are excluded.
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'projects','project_members','tasks','hazards','issues','timesheets','daily_logs',
+    'variations','purchase_orders','commercial_items','milestones','forecast_changes',
+    'procurement_items','qa_items','defects','subbie_requests','project_photos','documents',
+    'messages','po_messages','task_comments','issue_comments','variation_labour','blockers',
+    'eot_claims','material_requests','notification_log','site_visits','labour_rates'
+  ] loop
+    execute format('alter table %I add column if not exists org_id uuid references organisations', t);
+    execute format('create index if not exists %I on %I (org_id)', 'idx_' || t || '_org', t);
+  end loop;
+end $$;
+
 -- ── Refresh the API schema cache ────────────────────────────────
 notify pgrst, 'reload schema';
