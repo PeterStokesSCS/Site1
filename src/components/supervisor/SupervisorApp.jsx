@@ -18,11 +18,15 @@ export default function SupervisorApp({ user }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [initialScreen, setInitialScreen] = useState(null);
   const [focusId, setFocusId] = useState(null);   // entityId to deep-link on the destination screen
+  const [currentScreen, setCurrentScreen] = useState(null); // #9: which feature is open right now
   const [showMyDashboard, setShowMyDashboard] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // From an action item targeting a different assigned project: switch project + open the screen at the record.
   const switchToAction = (pid, screenKey, entityId = null) => { setInitialScreen(screenKey); setFocusId(entityId); setProjectId(pid); };
+
+  // #9: switching project keeps you in the same feature (Tasks→A becomes Tasks→B).
+  const switchProjectKeepFeature = (pid) => { setInitialScreen(currentScreen); setFocusId(null); setProjectId(pid); };
 
   // From the personal dashboard's action queue: resolve the screen, switch project, close overlay.
   const openActionFromMyDashboard = (item) => {
@@ -101,13 +105,14 @@ export default function SupervisorApp({ user }) {
       initialScreen={initialScreen}
       focusId={focusId}
       onSwitchProject={switchToAction}
+      onScreenChange={setCurrentScreen}
       badges={{ tasks: stats.tasks, issues: stats.issues, safety: stats.hazards, attendance: stats.onSite }}
       header={
         <ProjectHeader
           project={project}
           projects={projects}
           user={user}
-          onSwitch={projects.length > 1 ? setProjectId : null}
+          onSwitch={projects.length > 1 ? switchProjectKeepFeature : null}
           onAvatarClick={() => setShowMyDashboard(true)}
           rightSlot={<OnSiteIndicator user={user} project={project} onChange={() => setRefreshKey(k => k + 1)} />}
         />

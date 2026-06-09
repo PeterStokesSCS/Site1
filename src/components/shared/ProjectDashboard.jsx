@@ -56,8 +56,9 @@ function Soon({ title, project, onBack }) {
   );
 }
 
-// Tappable metric strip (Supervisor). Maps each stat to a dashboard tile.
-function StatRow({ stats, onNav }) {
+// Sticky tappable metric strip (Supervisor). A small dot flags a metric that has
+// grown since it was last viewed (#10). Each item opens its filtered screen.
+function StatRow({ stats, onNav, seen = {} }) {
   const items = [
     { key: "attendance", label: "On Site",   value: stats.onSite,  color: "#0ea5e9" },
     { key: "tasks",      label: "Tasks Due", value: stats.tasks,   color: "#f59e0b" },
@@ -65,18 +66,24 @@ function StatRow({ stats, onNav }) {
     { key: "safety",     label: "Hazards",   value: stats.hazards, color: "#ef4444" },
   ];
   return (
-    <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-      {items.map(s => (
-        <button key={s.key} onClick={() => onNav(s.key)} style={{ flex: 1, textAlign: "center", background: "#1a1a1a", border: "none", borderRadius: 10, padding: "10px 6px", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
-          <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
-          <div style={{ fontSize: 10, color: "#555", marginTop: 3, textTransform: "uppercase", letterSpacing: 0.3, fontFamily: "Barlow Condensed, sans-serif" }}>{s.label}</div>
-        </button>
-      ))}
+    <div style={{ display: "flex", gap: 8 }}>
+      {items.map(s => {
+        const isNew = seen[s.key] != null && s.value > seen[s.key];
+        return (
+          <button key={s.key} onClick={() => onNav(s.key, s.value)} style={{ position: "relative", flex: 1, textAlign: "center", background: "#1a1a1a", border: "none", borderRadius: 10, padding: "10px 6px", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}>
+            {isNew && <span style={{ position: "absolute", top: 6, right: 8, width: 8, height: 8, borderRadius: "50%", background: s.color, boxShadow: "0 0 0 2px #1a1a1a" }} />}
+            <div style={{ fontFamily: "Barlow Condensed, sans-serif", fontSize: 28, fontWeight: 700, color: s.color, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: "#888", marginTop: 3, textTransform: "uppercase", letterSpacing: 0.3, fontFamily: "Barlow Condensed, sans-serif" }}>{s.label}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, focusId, focusKind, onSwitchProject }) {
+const STAT_VAL = { attendance: "onSite", tasks: "tasks", issues: "issues", safety: "hazards" };
+
+export default function ProjectDashboard({ project, user, onBack, header, stats, badges = {}, maxWidth, initialScreen, focusId, focusKind, onSwitchProject, onScreenChange }) {
   const [screen, setScreen] = useState(initialScreen || null);
   // entityId an action item wants opened on the destination screen (deep-link to the exact record).
   const [focus, setFocus] = useState(focusId || null);
@@ -86,6 +93,26 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
 
   // Deep-link from an action item (parent sets initialScreen + focusId, possibly after switching project).
   useEffect(() => { if (initialScreen) setScreen(initialScreen); setFocus(focusId || null); setFocusK(focusKind || null); }, [initialScreen, focusId, focusKind]);
+
+  // #9: report the current screen up so a project switch can keep the same feature.
+  useEffect(() => { onScreenChange?.(screen); }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // #10: per-metric "last seen" baselines (localStorage) → dot when a count grows.
+  const SEEN_KEY = `scs_stats_seen_${project.id}`;
+  const [seen, setSeen] = useState(() => { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || "{}"); } catch { return {}; } });
+  useEffect(() => {
+    if (!stats) return;
+    setSeen(prev => {
+      const next = { ...prev }; let changed = false;
+      for (const k of Object.keys(STAT_VAL)) if (next[k] == null) { next[k] = stats[STAT_VAL[k]] ?? 0; changed = true; }
+      if (changed) { try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* ignore */ } }
+      return changed ? next : prev;
+    });
+  }, [stats]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onStatNav = (key, value) => {
+    setSeen(prev => { const next = { ...prev, [key]: value }; try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* ignore */ } return next; });
+    openScreen(key);
+  };
 
   // Open a screen from a normal tile/stat tap — clears any stale deep-link focus.
   const openScreen = (key) => { setFocus(null); setFocusK(null); setScreen(key); };
@@ -136,11 +163,15 @@ export default function ProjectDashboard({ project, user, onBack, header, stats,
           }
         />
       )}
+      {/* #10: sticky operational metrics bar — stays below the header while scrolling */}
+      {stats && (
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid #1e1e1e", background: "#0c0c0c", flexShrink: 0 }}>
+          <StatRow stats={stats} onNav={onStatNav} seen={seen} />
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px" }}>
         {isSupervisor && <ActionQueue items={actionItems} title="My actions today" max={5} onOpen={onAction} allClear="You're all caught up" />}
-        {stats ? (
-          <StatRow stats={stats} onNav={openScreen} />
-        ) : (
+        {!stats && (
           <div style={{ background: "#141414", border: "1px solid #1e1e1e", borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#666", marginBottom: 6 }}>
               <span>{project.client_name || "—"}</span>
