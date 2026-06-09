@@ -11,9 +11,13 @@ drop policy if exists "commercial_items_write"  on commercial_items;
 drop policy if exists "eot_all"                 on eot_claims;
 drop policy if exists "eot_claims_read"         on eot_claims;
 drop policy if exists "eot_claims_write"        on eot_claims;
+drop policy if exists "eot_read"                on eot_claims;       -- short-name variant
+drop policy if exists "eot_write"               on eot_claims;       -- short-name variant
 drop policy if exists "procurement_all"         on procurement_items;
 drop policy if exists "procurement_items_read"  on procurement_items;
 drop policy if exists "procurement_items_write" on procurement_items;
+drop policy if exists "procurement_read"        on procurement_items; -- short-name variant
+drop policy if exists "procurement_write"       on procurement_items; -- short-name variant
 
 -- commercial_items
 create policy "commercial_items_read" on commercial_items for select to authenticated using (
