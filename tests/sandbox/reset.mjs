@@ -53,6 +53,7 @@ async function sandboxOrgs() {
       const { data: m } = await db.from("org_members").select("user_id").eq("org_id", org.id);
       userIds = (m || []).map((r) => r.user_id);
     }
+    await del("audit_log", "org_id", org.id);        // no FK cascade; clean explicitly
     await del("org_members", "org_id", org.id);
     for (const uid of userIds) {
       await del("profiles", "id", uid);
