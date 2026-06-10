@@ -16,6 +16,9 @@ const URL = __ENV.SUPABASE_URL;
 const ANON = __ENV.SUPABASE_ANON_KEY;
 const REST = `${URL}/rest/v1`;
 
+// open() must be called in the init context (not inside setup()).
+const MANIFEST_RAW = open("../sandbox/.manifest.json");
+
 const writes = new Counter("site1_writes");
 
 // VU ramp profiles. Each holds a plateau so percentiles are meaningful.
@@ -41,7 +44,7 @@ export const options = {
 // Authenticate a pool of sandbox users once; VUs share the tokens.
 export function setup() {
   if (!URL || !ANON) throw new Error("Set SUPABASE_URL and SUPABASE_ANON_KEY");
-  const manifest = JSON.parse(open("../sandbox/.manifest.json"));
+  const manifest = JSON.parse(MANIFEST_RAW);
   const pwd = __ENV.SANDBOX_PASSWORD || manifest.password;
   const sessions = [];
   for (const org of manifest.orgs) {
